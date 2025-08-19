@@ -1,0 +1,15 @@
+
+CMakeLists.txt.user
+
+**/build/
+**/out/
+.vs/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+
+
+
+# irrklang
+irrklang/
