@@ -86,14 +86,11 @@ int main()
 
     // Vytvoření materiálu pro scénu
     Material sceneMaterial("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag", floorTexture, depthMap);
-
     // Vytvoření meshe a předání ukazatele na materiál
     StaticMesh cubeMesh(std::vector<float>(cubeVertices, cubeVertices + sizeof(cubeVertices) / sizeof(float)), &sceneMaterial);
     StaticMesh planeMesh(std::vector<float>(planeVertices, planeVertices + sizeof(planeVertices) / sizeof(float)), &sceneMaterial);
-
     // Vytvoření shaderu pro depth pass (nelze použít Material, protože nepotřebuje textury)
     unsigned int depthShaderID = createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
-
     // Vytvoření objektů scény
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
