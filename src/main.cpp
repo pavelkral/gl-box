@@ -55,7 +55,7 @@ int main()
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
-
+//============================================================================imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -63,7 +63,7 @@ int main()
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
-
+//============================================================================imgui
     // --- Geometrie a textury ---
     float cubeVertices[] = { -0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,0.0f,0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,0.0f,0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,1.0f,0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,1.0f,-0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,1.0f,-0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,0.0f,-0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,0.0f,0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,0.0f,0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,1.0f,0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,1.0f,-0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,1.0f,-0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,0.0f,-0.5f,0.5f,0.5f,-1.0f,0.0f,0.0f,1.0f,0.0f,-0.5f,0.5f,-0.5f,-1.0f,0.0f,0.0f,1.0f,1.0f,-0.5f,-0.5f,-0.5f,-1.0f,0.0f,0.0f,0.0f,1.0f,-0.5f,-0.5f,-0.5f,-1.0f,0.0f,0.0f,0.0f,1.0f,-0.5f,-0.5f,0.5f,-1.0f,0.0f,0.0f,0.0f,0.0f,-0.5f,0.5f,0.5f,-1.0f,0.0f,0.0f,1.0f,0.0f,0.5f,0.5f,0.5f,1.0f,0.0f,0.0f,1.0f,0.0f,0.5f,0.5f,-0.5f,1.0f,0.0f,0.0f,1.0f,1.0f,0.5f,-0.5f,-0.5f,1.0f,0.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,-0.5f,1.0f,0.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,0.5f,1.0f,0.0f,0.0f,0.0f,0.0f,0.5f,0.5f,0.5f,1.0f,0.0f,0.0f,1.0f,0.0f,-0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,1.0f,1.0f,0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,1.0f,0.0f,0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,1.0f,0.0f,-0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,0.0f,0.0f,-0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,0.0f,1.0f,-0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,0.0f,1.0f,0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,1.0f,1.0f,0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,1.0f,0.0f,0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,1.0f,0.0f,-0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,0.0f,0.0f,-0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,0.0f,1.0f };
     float planeVertices[] = { 25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,10.0f,0.0f,-25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,0.0f,0.0f,-25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,0.0f,10.0f,25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,10.0f,0.0f,-25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,0.0f,10.0f,25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,10.0f,10.0f };
@@ -106,7 +106,7 @@ int main()
     SceneObject cube(&cubeMesh);
     cube.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
-float rotationSpeed = 50.0f;
+    float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
 
     while (!glfwWindowShouldClose(window))
@@ -115,35 +115,39 @@ float rotationSpeed = 50.0f;
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-
+//============================================================================imgui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
+//============================================================================imgui
         processInput(window);
 
-
+//============================================================================imgui
         ImGui::Begin("Nastaveni sceny");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         if (ImGui::Button("Zmenit smer rotace krychle")) {
              rotationSpeed *= -1.0f;
         }
+
         ImGui::End();
-        // --- 1.pass depth map ---
+ //============================================================================imgui
+
+
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 7.5f;
         lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
         lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
+        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
+        // --- 1.pass depth map ---
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
 
 
-        floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
-        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
+        floor.DrawForShadow(depthShaderID, lightSpaceMatrix);     
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -154,13 +158,18 @@ float rotationSpeed = 50.0f;
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
-        //cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
+        //============================================================================draw
+
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
+
         ImGui::Render();
+        //============================================================================imgui
+
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
         glfwPollEvents();
+
     }
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -171,6 +180,7 @@ float rotationSpeed = 50.0f;
 
 // --- Implementace pomocných funkcí ---
 void processInput(GLFWwindow *window) {
+
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureKeyboard) {
         return;
@@ -202,7 +212,9 @@ void processInput(GLFWwindow *window) {
 }
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+
     ImGuiIO& io = ImGui::GetIO();
+
     if (io.WantCaptureMouse) {
         return;
     }
