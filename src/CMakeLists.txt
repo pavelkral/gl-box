@@ -39,6 +39,8 @@ set(DISTFILES
     shaders/basic_texture_shader.vert
     shaders/depth.frag
     shaders/depth.vert
+    shaders/model.frag
+    shaders/model.vert
 )
 
 # Include directories
@@ -63,6 +65,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Material.h
     glbox/StaticMesh.h
     glbox/SceneObject.h
+    glbox/model.h glbox/model.cpp
 
 
 )

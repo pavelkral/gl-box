@@ -15,6 +15,7 @@
 #include "glbox/StaticMesh.h"
 #include "glbox/Transform.h"
 #include "glbox/SceneObject.h"
+#include "glbox/Model.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -145,11 +146,11 @@ int main()
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    //=======================================================scene setup
+
     // Vytvoření materiálu pro scénu
     Material sceneMaterial("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag", floorTexture, depthMap);
     // Vytvoření meshe a předání ukazatele na materiál
-
-
     StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
                         std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
                         &sceneMaterial);
@@ -169,6 +170,13 @@ int main()
      static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
+
+    Model ourModel("assets/models/Player/Player.fbx");
+    unsigned int modelShaderID = createShaderProgram("shaders/model.vert", "shaders/model.frag");
+    Transform modelTransform;
+    modelTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+    modelTransform.scale = glm::vec3(0.05f);
+    //=======================================================main loop
 
     while (!glfwWindowShouldClose(window))
     {
@@ -213,7 +221,7 @@ int main()
         }
 
         // Vypocet matic svetla (lightSpaceMatrix)
-       // glm::mat4 lightProjection, lightView;
+        glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 17.5f;
         float orthoSize = 20.0f; // Výchozí velikost
@@ -222,17 +230,16 @@ int main()
         glm::vec3 cubePos = cube.transform.position;
 
         // Nové nastavení kamery světla
-       // glm::mat4 lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
-       // glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
-        //glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
-       // lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+       // lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
+       //lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
+        //lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
        // lightSpaceMatrix = lightProjection * lightView;
 
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Střed vaší scény
         // Dynamická velikost ortografické projekce
-        glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
+        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
         // Kamera světla se vždy dívá na cíl
-        glm::mat4 lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
+        lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
 
@@ -244,7 +251,7 @@ int main()
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-
+        ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView, lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);     
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
 
@@ -261,6 +268,17 @@ int main()
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
+
+        glUseProgram(modelShaderID);
+        // Nastavte všechny uniform proměnné jako lightPos, lightColor, viewPos, atd.
+
+        // ... (a dalsi uniformy)
+        glUniform3fv(glGetUniformLocation(modelShaderID, "lightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(modelShaderID, "lightColor"), 1, glm::value_ptr(lightColor));
+        glUniform3fv(glGetUniformLocation(modelShaderID, "viewPos"), 1, glm::value_ptr(camera.Position));
+        glUniform1f(glGetUniformLocation(modelShaderID, "ambientStrength"), ambientStrength);
+        // Nakreslete model
+        ourModel.Draw(modelShaderID, modelTransform.GetModelMatrix(), view, projection, lightSpaceMatrix);
 
         ImGui::Render();
         //============================================================================imgui

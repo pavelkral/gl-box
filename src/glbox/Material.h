@@ -11,6 +11,12 @@
 #include <sstream>
 #include <iostream>
 
+struct Texture {
+    unsigned int id;
+    std::string type;
+    std::string path;
+};
+
 class Material {
 public:
     unsigned int shaderProgramID;
