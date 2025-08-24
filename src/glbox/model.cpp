@@ -175,6 +175,6 @@ void Model::Draw(unsigned int shaderID, const glm::mat4& model, const glm::mat4&
 
     for(unsigned int i = 0; i < meshes.size(); i++){
         meshes[i].Draw(shaderID);
-        std::cout << meshes.size();
+        //std::cout << meshes.size();
     }
 }

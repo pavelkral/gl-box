@@ -62,6 +62,7 @@ public:
     unsigned int vertexCount;
     Material* material;
     std::vector<unsigned int> indices;
+    std::vector<float> vertices;
     std::vector<Texture> textures;
     // Nový konštruktor, ktorý prijíma vertexy AJ indexy
     StaticMesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices, Material* mat)
@@ -95,6 +96,7 @@ public:
     StaticMesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices, const std::vector<Texture>& textures) {
         this->indices = indices;
         this->textures = textures;
+        this->vertices = vertices;
 
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);

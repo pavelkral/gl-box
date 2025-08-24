@@ -15,9 +15,9 @@ public:
         loadModel(path);
     }
     void Draw(unsigned int shaderID, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix);
-
-private:
     std::vector<StaticMesh> meshes;
+private:
+
     std::string directory;
     std::vector<Texture> textures_loaded;
 

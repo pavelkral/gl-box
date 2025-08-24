@@ -171,11 +171,22 @@ int main()
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
 
-    Model ourModel("assets/models/Player/Player.fbx");
+    Model ourModel("assets/models/anime.fbx");
     unsigned int modelShaderID = createShaderProgram("shaders/model.vert", "shaders/model.frag");
     Transform modelTransform;
     modelTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-    modelTransform.scale = glm::vec3(0.05f);
+    modelTransform.scale = glm::vec3(0.01f);
+
+    for (auto val : ourModel.meshes[0].indices) {
+        std::cout << val << " ";
+    }
+    for (auto val : ourModel.meshes[0].vertices) {
+        std::cout << val << " ";
+    }
+    for (auto val : ourModel.meshes[0].textures) {
+        std::cout << val.path << " ";
+    }
+    std::cout << std::endl;
     //=======================================================main loop
 
     while (!glfwWindowShouldClose(window))
@@ -251,8 +262,8 @@ int main()
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView, lightProjection, lightSpaceMatrix);
-        floor.DrawForShadow(depthShaderID, lightSpaceMatrix);     
+        //ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView, lightProjection, lightSpaceMatrix);
+        floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
