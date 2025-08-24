@@ -40,7 +40,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Shadow Mapping", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -123,7 +123,7 @@ int main()
     unsigned int cubeTexture = loadTexture("floor.png");
     unsigned int floorTexture = loadTexture("floor.png");
 
-    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
     unsigned int depthMapFBO;
     glGenFramebuffers(1, &depthMapFBO);
     unsigned int depthMap;
@@ -165,6 +165,10 @@ int main()
     cube.transform.scale = glm::vec3(0.5f);
     float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
+    float lightSpeed = 1.0f;
+     static bool autoLightMovement = false;
+    glm::vec3 lightColor = glm::vec3(1.0f);
+    float ambientStrength = 0.1f;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -177,25 +181,62 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 //============================================================================imgui
-        processInput(window);
+
 //============================================================================imgui
         ImGui::Begin("Nastaveni sceny");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         if (ImGui::Button("Zmenit smer rotace krychle")) {
-             rotationSpeed *= -1.0f;
+            rotationSpeed *= -1.0f;
         }
+
+        // Sekce pro ovladani svetla
+        ImGui::Separator(); // Oddelovac pro lepsi prehlednost
+        ImGui::Text("Ovladani svetla");
+        ImGui::SliderFloat("Light X", &lightPos.x, -5.0f, 5.0f);
+        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 10.0f);
+        ImGui::SliderFloat("Light Z", &lightPos.z, -5.0f, 5.0f);
+        ImGui::Separator();
+        ImGui::Text("Nastaveni svetla");
+        ImGui::ColorEdit3("Barva svetla", glm::value_ptr(lightColor));
+        ImGui::SliderFloat("Ambientni sila", &ambientStrength, 0.0f, 1.0f);
+
+        ImGui::Checkbox("Auto pohyb svetla", &autoLightMovement);
 
         ImGui::End();
 
  //============================================================================imgui
+        processInput(window);
 
+        if (autoLightMovement) {
+            lightPos.x = sin(glfwGetTime() * lightSpeed) * 3.0f;
+            lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
+        }
 
-        glm::mat4 lightProjection, lightView;
+        // Vypocet matic svetla (lightSpaceMatrix)
+       // glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
-        float near_plane = 1.0f, far_plane = 7.5f;
-        lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-        lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+        float near_plane = 1.0f, far_plane = 17.5f;
+        float orthoSize = 20.0f; // Výchozí velikost
+        float lightX = lightPos.x;
+        float lightZ = lightPos.z;
+        glm::vec3 cubePos = cube.transform.position;
+
+        // Nové nastavení kamery světla
+       // glm::mat4 lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
+       // glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
+        //glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+       // lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+       // lightSpaceMatrix = lightProjection * lightView;
+
+        glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Střed vaší scény
+        // Dynamická velikost ortografické projekce
+        glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
+        // Kamera světla se vždy dívá na cíl
+        glm::mat4 lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
+
+
+        sceneMaterial.setLightProperties(lightPos, lightColor, ambientStrength, camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
         // --- 1.pass depth map ---

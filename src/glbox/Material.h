@@ -94,7 +94,13 @@ public:
         setInt("diffuseTexture", 0);
         setInt("shadowMap", 1);
     }
-
+    void setLightProperties(const glm::vec3& light_pos, const glm::vec3& light_color, float ambient_strength, const glm::vec3& view_pos) const {
+        glUseProgram(shaderProgramID);
+        setVec3("lightPos", light_pos);
+        setVec3("lightColor", light_color);
+        setFloat("ambientStrength", ambient_strength);
+        setVec3("viewPos", view_pos);
+    }
     void setMat4(const std::string& name, const glm::mat4& mat) const {
         glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, name.c_str()), 1, GL_FALSE, glm::value_ptr(mat));
     }
@@ -104,5 +110,9 @@ public:
     void setInt(const std::string& name, int value) const {
         glUniform1i(glGetUniformLocation(shaderProgramID, name.c_str()), value);
     }
+    void setFloat(const std::string& name, float value) const {
+        glUniform1f(glGetUniformLocation(shaderProgramID, name.c_str()), value);
+    }
+
 };
 #endif // MATERIAL_H
