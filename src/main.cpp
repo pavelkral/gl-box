@@ -1,5 +1,4 @@
 #include "stb_image.h"
-
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
 #include <glm/glm.hpp>
@@ -127,7 +126,6 @@ int main()
     const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
     unsigned int depthMapFBO;
     glGenFramebuffers(1, &depthMapFBO);
-
     unsigned int depthMap;
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
@@ -180,7 +178,6 @@ int main()
         ImGui::NewFrame();
 //============================================================================imgui
         processInput(window);
-
 //============================================================================imgui
         ImGui::Begin("Nastaveni sceny");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
@@ -189,6 +186,7 @@ int main()
         }
 
         ImGui::End();
+
  //============================================================================imgui
 
 
@@ -217,6 +215,7 @@ int main()
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
+
         //============================================================================draw
 
         floor.Draw(view, projection, lightSpaceMatrix);

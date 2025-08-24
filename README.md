@@ -1,4 +1,4 @@
-# OpenGL framework
+# OpenGL tiny framework
 
 
 # Building
@@ -18,6 +18,7 @@ The project is built using qmake or cmake.
 * [ThreadPool](https://github.com/progschj/ThreadPool)
 * [glm](https://github.com/g-truc/glm)
 * [glfw](https://github.com/glfw/glfw)
+* [imgui](https://github.com/glfw/glfw)
 
 ### Build Dependencies
 
