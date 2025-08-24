@@ -10,11 +10,12 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "objects/Camera.h"
-#include "objects/Material.h"
-#include "objects/StaticMesh.h"
-#include "objects/Transform.h"
-#include "objects/SceneObject.h"
+
+#include "glbox/Camera.h"
+#include "glbox/Material.h"
+#include "glbox/StaticMesh.h"
+#include "glbox/Transform.h"
+#include "glbox/SceneObject.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -65,9 +66,61 @@ int main()
     ImGui_ImplOpenGL3_Init("#version 330");
 //============================================================================imgui
     // --- Geometrie a textury ---
-    float cubeVertices[] = { -0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,0.0f,0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,0.0f,0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,1.0f,0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,1.0f,1.0f,-0.5f,0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,1.0f,-0.5f,-0.5f,-0.5f,0.0f,0.0f,-1.0f,0.0f,0.0f,-0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,0.0f,0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,0.0f,0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,1.0f,0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,1.0f,1.0f,-0.5f,0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,1.0f,-0.5f,-0.5f,0.5f,0.0f,0.0f,1.0f,0.0f,0.0f,-0.5f,0.5f,0.5f,-1.0f,0.0f,0.0f,1.0f,0.0f,-0.5f,0.5f,-0.5f,-1.0f,0.0f,0.0f,1.0f,1.0f,-0.5f,-0.5f,-0.5f,-1.0f,0.0f,0.0f,0.0f,1.0f,-0.5f,-0.5f,-0.5f,-1.0f,0.0f,0.0f,0.0f,1.0f,-0.5f,-0.5f,0.5f,-1.0f,0.0f,0.0f,0.0f,0.0f,-0.5f,0.5f,0.5f,-1.0f,0.0f,0.0f,1.0f,0.0f,0.5f,0.5f,0.5f,1.0f,0.0f,0.0f,1.0f,0.0f,0.5f,0.5f,-0.5f,1.0f,0.0f,0.0f,1.0f,1.0f,0.5f,-0.5f,-0.5f,1.0f,0.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,-0.5f,1.0f,0.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,0.5f,1.0f,0.0f,0.0f,0.0f,0.0f,0.5f,0.5f,0.5f,1.0f,0.0f,0.0f,1.0f,0.0f,-0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,0.0f,1.0f,0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,1.0f,1.0f,0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,1.0f,0.0f,0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,1.0f,0.0f,-0.5f,-0.5f,0.5f,0.0f,-1.0f,0.0f,0.0f,0.0f,-0.5f,-0.5f,-0.5f,0.0f,-1.0f,0.0f,0.0f,1.0f,-0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,0.0f,1.0f,0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,1.0f,1.0f,0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,1.0f,0.0f,0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,1.0f,0.0f,-0.5f,0.5f,0.5f,0.0f,1.0f,0.0f,0.0f,0.0f,-0.5f,0.5f,-0.5f,0.0f,1.0f,0.0f,0.0f,1.0f };
-    float planeVertices[] = { 25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,10.0f,0.0f,-25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,0.0f,0.0f,-25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,0.0f,10.0f,25.0f,-0.5f,25.0f,0.0f,1.0f,0.0f,10.0f,0.0f,-25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,0.0f,10.0f,25.0f,-0.5f,-25.0f,0.0f,1.0f,0.0f,10.0f,10.0f };
+    float indexedCubeVertices[] = {
+        // Pozícia           // Normál             // UV súradnice
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
+        0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 1.0f,
 
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
+        0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 1.0f,
+
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+
+        0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+        0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+        0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
+        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
+
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
+        0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
+        0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f
+    };
+
+    unsigned int cubeIndices[] = {
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4,
+        8, 9, 10, 10, 11, 8,
+        12, 13, 14, 14, 15, 12,
+        16, 17, 18, 18, 19, 16,
+        20, 21, 22, 22, 23, 20
+    };
+
+    // Nové dáta pre rovinu
+    float indexedPlaneVertices[] = {
+        // Pozícia             // Normál             // UV
+        25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,   10.0f,  0.0f,
+        25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   10.0f, 10.0f,
+        -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,    0.0f, 10.0f,
+        -25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,    0.0f,  0.0f
+    };
+
+    unsigned int planeIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
     unsigned int cubeTexture = loadTexture("floor.png");
     unsigned int floorTexture = loadTexture("floor.png");
 
@@ -97,9 +150,15 @@ int main()
     // Vytvoření materiálu pro scénu
     Material sceneMaterial("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag", floorTexture, depthMap);
     // Vytvoření meshe a předání ukazatele na materiál
-    StaticMesh cubeMesh(std::vector<float>(cubeVertices, cubeVertices + sizeof(cubeVertices) / sizeof(float)), &sceneMaterial);
-    StaticMesh planeMesh(std::vector<float>(planeVertices, planeVertices + sizeof(planeVertices) / sizeof(float)), &sceneMaterial);
-    // Vytvoření shaderu pro depth pass (nelze použít Material, protože nepotřebuje textury)
+
+
+    StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
+                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
+                        &sceneMaterial);
+    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices), std::end(indexedPlaneVertices)),
+                         std::vector<unsigned int>(std::begin(planeIndices), std::end(planeIndices)),
+                         &sceneMaterial);
+
     unsigned int depthShaderID = createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
     // Vytvoření objektů scény
     SceneObject floor(&planeMesh);

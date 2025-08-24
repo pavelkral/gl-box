@@ -54,14 +54,18 @@ include_directories(
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/cubes.h
     samples/lights.h
-    objects/camera.h
+    samples/sample.h
     samples/shadows.h
     samples/shadows_camera.h
 
-    objects/Transform.h
-    objects/Material.h
-    objects/StaticMesh.h
-    objects/SceneObject.h)
+    glbox/camera.h
+    glbox/Transform.h
+    glbox/Material.h
+    glbox/StaticMesh.h
+    glbox/SceneObject.h
+
+
+)
 
 # Platform-specific settings
 if(WIN32)
