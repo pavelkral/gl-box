@@ -75,11 +75,22 @@ public:
 
     // Method to set uniforms and bind textures for drawing
     void use(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix) const {
+
+        if (this->shaderProgramID == 0) {
+            std::cout << "CHYBA: Shader Program ID je 0. Shader se nepodarilo nacist." << std::endl;
+        }
         glUseProgram(this->shaderProgramID);
         setMat4("model", model);
         setMat4("view", view);
         setMat4("projection", projection);
         setMat4("lightSpaceMatrix", lightSpaceMatrix);
+
+        int loc = glGetUniformLocation(this->shaderProgramID, "shadowMap");
+        if (loc == -1) {
+            std::cout << "CHYBA: Uniform 'shadowMap' nebyl nalezen v shaderu!" << std::endl;
+        } else {
+            glUniform1i(loc, textures.size());
+        }
 
 
         // Dynamic texture binding

@@ -148,12 +148,15 @@ int main() {
     unsigned int floorTexID = loadTexture("floor.png");
     unsigned int brickTexID = loadTexture("anime.png");
     // unsigned int depthMapID; // Získané z framebufferu
-
+    unsigned int modeTexID = loadTexture("anime.png");
     // 2. Vytvoření dvou sad textur
     std::vector<Texture> floorTextures = {
                                           {floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {
                                           {brickTexID, "texture_diffuse", "fl.png"}};
+    std::vector<Texture> modelTextures = {
+                                          {brickTexID, "texture_diffuse", "fl.png"}};
+
 
     // 3. Vytvoření instancí Material, každá s vlastním shaderem a texturou
     Material floorMaterial("shaders/basic_texture_shader.vert",
@@ -162,7 +165,9 @@ int main() {
     Material cubeMaterial("shaders/basic_texture_shader.vert",
                           "shaders/basic_texture_shader.frag", brickTextures,
                           depthMap);
-
+    Material modelMaterial("shaders/basic_texture_shader.vert",
+                          "shaders/basic_texture_shader.frag", modelTextures,
+                          depthMap);
     StaticMesh cubeMesh(
         std::vector<float>(std::begin(indexedCubeVertices),
                            std::end(indexedCubeVertices)),
@@ -191,13 +196,16 @@ int main() {
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
 
-    //  Material modelMaterial("shaders/model.vert", "shaders/model.frag",
-    //  floorTexID, depthMap); Model ourModel("assets/models/anime.fbx",
-    //  &modelMaterial);
-    //  ourModel.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-    // ourModel.transform.scale = glm::vec3(0.01f);
+    //  Material modelMaterial("shaders/model.vert", "shaders/model.frag",floorTexID, depthMap);
+   // Model ourModel("assets/models/Player/Player.fbx",  &modelMaterial);
+  //  ourModel.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+  //  ourModel.transform.scale = glm::vec3(0.01f);
     //  unsigned int modelShaderID = createShaderProgram("shaders/model.vert",
     //  "shaders/model.frag");
+    ModelFBX model("assets/models/Player/Player.fbx");
+    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
+    model.setFallbackMetallic(0.1f);
+    model.setFallbackSmoothness(0.3f);
 
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
@@ -261,13 +269,6 @@ int main() {
         float lightZ = lightPos.z;
         glm::vec3 cubePos = cube.transform.position;
 
-        // Nové nastavení kamery světla
-        // lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
-        // lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize,
-        // orthoSize, near_plane, far_plane); lightView = glm::lookAt(lightPos,
-        // glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
-        // lightSpaceMatrix = lightProjection * lightView;
-
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Střed vaší scény
         // Dynamická velikost ortografické projekce
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,
@@ -291,7 +292,7 @@ int main() {
         // lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
-
+      //  ourModel.DrawForShadow(depthShaderID, lightSpaceMatrix);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // --- 2. pass geometry ---
@@ -308,7 +309,12 @@ int main() {
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
 
-        // ourModel.Draw( view, projection, lightSpaceMatrix);
+        glm::mat4 modelM = glm::mat4(1.0f);
+        model.draw(glm::value_ptr(modelM),
+                   glm::value_ptr(view),
+                   glm::value_ptr(projection),
+                   glm::value_ptr(camera.GetViewMatrix()));
+       // ourModel.Draw( view, projection, lightSpaceMatrix);
 
         ImGui::Render();
         //============================================================================imgui
@@ -323,7 +329,7 @@ int main() {
     glfwTerminate();
     return 0;
 }
-
+//============================================================================end Helpers
 // --- Implementace pomocných funkcí ---
 void processInput(GLFWwindow *window) {
 
