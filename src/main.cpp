@@ -36,7 +36,7 @@ float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
 int main() {
-    // --- Inicializace ---
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -66,10 +66,11 @@ int main() {
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+
     //============================================================================imgui
-    // --- Geometrie a textury ---
+    // --- Geometry a textures ---
     float indexedCubeVertices[] = {
-                                   // Pozícia           // Normál             // UV súradnice
+        // Pozícia           // Normál             // UV súradnice
         -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 0.0f,
         0.5f,  -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 0.0f,
         0.5f,  0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 1.0f,
@@ -104,9 +105,9 @@ int main() {
                                   8,  9,  10, 10, 11, 8,  12, 13, 14, 14, 15, 12,
                                   16, 17, 18, 18, 19, 16, 20, 21, 22, 22, 23, 20};
 
-    // Nové dáta pre rovinu
+
     float indexedPlaneVertices[] = {
-                                    // Pozícia             // Normál             // UV
+        // Pozícia             // Normál             // UV
         25.0f,  -0.5f, 25.0f,  0.0f, 1.0f, 0.0f, 10.0f, 0.0f,
         25.0f,  -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 10.0f, 10.0f,
         -25.0f, -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 0.0f,  10.0f,
@@ -141,10 +142,6 @@ int main() {
 
     //=======================================================scene setup
 
-    // Vytvoření materiálu pro scénu
-
-    // Vytvoření meshe a předání ukazatele na materiál
-
     unsigned int floorTexID = loadTexture("floor.png");
     unsigned int brickTexID = loadTexture("anime.png");
     // unsigned int depthMapID; // Získané z framebufferu
@@ -178,17 +175,15 @@ int main() {
                          std::vector<unsigned int>(std::begin(planeIndices),
                                                    std::end(planeIndices)),
                          &floorMaterial);
-    // 4. Vytvoření meshe a přiřazení materiálů
-    // StaticMesh floorMesh(indexedPlaneVertices, planeIndices, &floorMaterial);
-    // StaticMesh cubeMesh(indexedCubeVertices, cubeIndices, &cubeMaterial);
 
-    unsigned int depthShaderID =
-        createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
+
+    unsigned int depthShaderID = createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
     // Vytvoření objektů scény
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
     cube.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
+
     float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
     float lightSpeed = 1.0f;
@@ -196,12 +191,6 @@ int main() {
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
 
-    //  Material modelMaterial("shaders/model.vert", "shaders/model.frag",floorTexID, depthMap);
-   // Model ourModel("assets/models/Player/Player.fbx",  &modelMaterial);
-  //  ourModel.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-  //  ourModel.transform.scale = glm::vec3(0.01f);
-    //  unsigned int modelShaderID = createShaderProgram("shaders/model.vert",
-    //  "shaders/model.frag");
     ModelFBX model("assets/models/Player/Player.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model.setFallbackMetallic(0.1f);
@@ -212,14 +201,7 @@ int main() {
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
     // }
-    // for (auto val : ourModel.meshes[0].vertices) {
-    //     //std::cout << val << " ";
-    // }
-    // for (auto val : ourModel.meshes[0].textures) {
-    //    // std::cout << val.path << " ";
-    // }
-    // //std::cout << std::endl;
-    //=======================================================main loop
+  //=======================main loop
 
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -294,8 +276,8 @@ int main() {
         // lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
-      // cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
         model.DrawForShadow(depthShaderID, lightSpaceMatrix);
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // --- 2. pass geometry ---
@@ -311,8 +293,6 @@ int main() {
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
-
-        glm::mat4 modelM = glm::mat4(1.0f);
         model.draw(view,projection, camera.Position);
        // ourModel.Draw( view, projection, lightSpaceMatrix);
 
