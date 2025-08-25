@@ -1,3 +1,6 @@
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include "stb_image.h"
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
@@ -6,22 +9,20 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <string>
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 
 #include "glbox/Camera.h"
 #include "glbox/Material.h"
+#include "glbox/Model.h"
+#include "glbox/SceneObject.h"
 #include "glbox/StaticMesh.h"
 #include "glbox/Transform.h"
-#include "glbox/SceneObject.h"
-#include "glbox/Model.h"
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+void framebuffer_size_callback(GLFWwindow *window, int width, int height);
+void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
-unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPath);
+unsigned int createShaderProgram(const char *vertexPath,
+                                 const char *fragmentPath);
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
@@ -34,14 +35,14 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-int main()
-{
+int main() {
     // --- Inicializace ---
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
+    GLFWwindow *window =
+        glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -56,73 +57,62 @@ int main()
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
-//============================================================================imgui
+    //============================================================================imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
-//============================================================================imgui
+    //============================================================================imgui
     // --- Geometrie a textury ---
     float indexedCubeVertices[] = {
-        // Pozícia           // Normál             // UV súradnice
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 0.0f,
-        0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f, 1.0f,
+                                   // Pozícia           // Normál             // UV súradnice
+        -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 0.0f,
+        0.5f,  -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 0.0f,
+        0.5f,  0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 1.0f,
+        -0.5f, 0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 1.0f,
 
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
+        0.5f,  -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 0.0f,
         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 1.0f,
+        -0.5f, 0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 1.0f,
 
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+        -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f, 0.0f,
+        -0.5f, 0.5f,  -0.5f, -1.0f, 0.0f,  0.0f,  1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f, 0.0f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f,  0.0f,  0.0f, 0.0f,
 
         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
+        0.5f,  0.5f,  -0.5f, 1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+        0.5f,  -0.5f, -0.5f, 1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
+        0.5f,  -0.5f, 0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
 
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f, 1.0f,
+        0.5f,  -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  1.0f, 1.0f,
+        0.5f,  -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,  1.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,  0.0f, 0.0f,
 
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
+        -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
+        0.5f,  0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f
-    };
+        -0.5f, 0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f};
 
-    unsigned int cubeIndices[] = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4,
-        8, 9, 10, 10, 11, 8,
-        12, 13, 14, 14, 15, 12,
-        16, 17, 18, 18, 19, 16,
-        20, 21, 22, 22, 23, 20
-    };
+    unsigned int cubeIndices[] = {0,  1,  2,  2,  3,  0,  4,  5,  6,  6,  7,  4,
+                                  8,  9,  10, 10, 11, 8,  12, 13, 14, 14, 15, 12,
+                                  16, 17, 18, 18, 19, 16, 20, 21, 22, 22, 23, 20};
 
     // Nové dáta pre rovinu
     float indexedPlaneVertices[] = {
-        // Pozícia             // Normál             // UV
-        25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,   10.0f,  0.0f,
-        25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   10.0f, 10.0f,
-        -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,    0.0f, 10.0f,
-        -25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,    0.0f,  0.0f
-    };
+                                    // Pozícia             // Normál             // UV
+        25.0f,  -0.5f, 25.0f,  0.0f, 1.0f, 0.0f, 10.0f, 0.0f,
+        25.0f,  -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 10.0f, 10.0f,
+        -25.0f, -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 0.0f,  10.0f,
+        -25.0f, -0.5f, 25.0f,  0.0f, 1.0f, 0.0f, 0.0f,  0.0f};
 
-    unsigned int planeIndices[] = {
-        0, 1, 2,
-        0, 2, 3
-    };
-    unsigned int cubeTexture = loadTexture("floor.png");
-    unsigned int floorTexture = loadTexture("floor.png");
+    unsigned int planeIndices[] = {0, 1, 2, 0, 2, 3};
 
     const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
     unsigned int depthMapFBO;
@@ -130,18 +120,21 @@ int main()
     unsigned int depthMap;
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
+                 SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+    float borderColor[] = {1.0, 1.0, 1.0, 1.0};
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
+                    GL_COMPARE_REF_TO_TEXTURE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                           depthMap, 0);
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -149,16 +142,43 @@ int main()
     //=======================================================scene setup
 
     // Vytvoření materiálu pro scénu
-    Material sceneMaterial("shaders/basic_texture_shader.vert", "shaders/basic_texture_shader.frag", floorTexture, depthMap);
-    // Vytvoření meshe a předání ukazatele na materiál
-    StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
-                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
-                        &sceneMaterial);
-    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices), std::end(indexedPlaneVertices)),
-                         std::vector<unsigned int>(std::begin(planeIndices), std::end(planeIndices)),
-                         &sceneMaterial);
 
-    unsigned int depthShaderID = createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
+    // Vytvoření meshe a předání ukazatele na materiál
+
+    unsigned int floorTexID = loadTexture("floor.png");
+    unsigned int brickTexID = loadTexture("anime.png");
+    // unsigned int depthMapID; // Získané z framebufferu
+
+    // 2. Vytvoření dvou sad textur
+    std::vector<Texture> floorTextures = {
+                                          {floorTexID, "texture_diffuse", "floor.png"}};
+    std::vector<Texture> brickTextures = {
+                                          {brickTexID, "texture_diffuse", "fl.png"}};
+
+    // 3. Vytvoření instancí Material, každá s vlastním shaderem a texturou
+    Material floorMaterial("shaders/basic_texture_shader.vert",
+                           "shaders/basic_texture_shader.frag", floorTextures,
+                           depthMap);
+    Material cubeMaterial("shaders/basic_texture_shader.vert",
+                          "shaders/basic_texture_shader.frag", brickTextures,
+                          depthMap);
+
+    StaticMesh cubeMesh(
+        std::vector<float>(std::begin(indexedCubeVertices),
+                           std::end(indexedCubeVertices)),
+        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
+        &cubeMaterial);
+    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),
+                                            std::end(indexedPlaneVertices)),
+                         std::vector<unsigned int>(std::begin(planeIndices),
+                                                   std::end(planeIndices)),
+                         &floorMaterial);
+    // 4. Vytvoření meshe a přiřazení materiálů
+    // StaticMesh floorMesh(indexedPlaneVertices, planeIndices, &floorMaterial);
+    // StaticMesh cubeMesh(indexedCubeVertices, cubeIndices, &cubeMaterial);
+
+    unsigned int depthShaderID =
+        createShaderProgram("shaders/depth.vert", "shaders/depth.frag");
     // Vytvoření objektů scény
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
@@ -167,41 +187,42 @@ int main()
     float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
     float lightSpeed = 1.0f;
-     static bool autoLightMovement = false;
+    static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
 
-    Model ourModel("assets/models/anime.fbx");
-    unsigned int modelShaderID = createShaderProgram("shaders/model.vert", "shaders/model.frag");
-    Transform modelTransform;
-    modelTransform.position = glm::vec3(0.0f, 0.0f, 0.0f);
-    modelTransform.scale = glm::vec3(0.01f);
+    //  Material modelMaterial("shaders/model.vert", "shaders/model.frag",
+    //  floorTexID, depthMap); Model ourModel("assets/models/anime.fbx",
+    //  &modelMaterial);
+    //  ourModel.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+    // ourModel.transform.scale = glm::vec3(0.01f);
+    //  unsigned int modelShaderID = createShaderProgram("shaders/model.vert",
+    //  "shaders/model.frag");
 
-    for (auto val : ourModel.meshes[0].indices) {
-        std::cout << val << " ";
-    }
-    for (auto val : ourModel.meshes[0].vertices) {
-        std::cout << val << " ";
-    }
-    for (auto val : ourModel.meshes[0].textures) {
-        std::cout << val.path << " ";
-    }
-    std::cout << std::endl;
+    // for (auto val : ourModel.meshes[0].indices) {
+    //     //std::cout << val << " ";
+    // }
+    // for (auto val : ourModel.meshes[0].vertices) {
+    //     //std::cout << val << " ";
+    // }
+    // for (auto val : ourModel.meshes[0].textures) {
+    //    // std::cout << val.path << " ";
+    // }
+    // //std::cout << std::endl;
     //=======================================================main loop
 
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-//============================================================================imgui
+        //============================================================================imgui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-//============================================================================imgui
+        //============================================================================imgui
 
-//============================================================================imgui
+        //============================================================================imgui
         ImGui::Begin("Nastaveni sceny");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         if (ImGui::Button("Zmenit smer rotace krychle")) {
@@ -223,7 +244,7 @@ int main()
 
         ImGui::End();
 
- //============================================================================imgui
+        //============================================================================imgui
         processInput(window);
 
         if (autoLightMovement) {
@@ -241,20 +262,24 @@ int main()
         glm::vec3 cubePos = cube.transform.position;
 
         // Nové nastavení kamery světla
-       // lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
-       //lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
-        //lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
-       // lightSpaceMatrix = lightProjection * lightView;
+        // lightView = glm::lookAt(lightPos, cubePos, glm::vec3(0.0, 1.0, 0.0));
+        // lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize,
+        // orthoSize, near_plane, far_plane); lightView = glm::lookAt(lightPos,
+        // glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+        // lightSpaceMatrix = lightProjection * lightView;
 
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Střed vaší scény
         // Dynamická velikost ortografické projekce
-        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane, far_plane);
+        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,
+                                     near_plane, far_plane);
         // Kamera světla se vždy dívá na cíl
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
-
-        sceneMaterial.setLightProperties(lightPos, lightColor, ambientStrength, camera.Position);
+        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,
+                                         camera.Position);
+        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,
+                                        camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
         // --- 1.pass depth map ---
@@ -262,7 +287,8 @@ int main()
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        //ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView, lightProjection, lightSpaceMatrix);
+        // ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView,
+        // lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
 
@@ -272,7 +298,9 @@ int main()
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection =
+            glm::perspective(glm::radians(45.0f),
+                                                (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
         //============================================================================draw
@@ -280,16 +308,7 @@ int main()
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
 
-        glUseProgram(modelShaderID);
-        // Nastavte všechny uniform proměnné jako lightPos, lightColor, viewPos, atd.
-
-        // ... (a dalsi uniformy)
-        glUniform3fv(glGetUniformLocation(modelShaderID, "lightPos"), 1, glm::value_ptr(lightPos));
-        glUniform3fv(glGetUniformLocation(modelShaderID, "lightColor"), 1, glm::value_ptr(lightColor));
-        glUniform3fv(glGetUniformLocation(modelShaderID, "viewPos"), 1, glm::value_ptr(camera.Position));
-        glUniform1f(glGetUniformLocation(modelShaderID, "ambientStrength"), ambientStrength);
-        // Nakreslete model
-        ourModel.Draw(modelShaderID, modelTransform.GetModelMatrix(), view, projection, lightSpaceMatrix);
+        // ourModel.Draw( view, projection, lightSpaceMatrix);
 
         ImGui::Render();
         //============================================================================imgui
@@ -297,7 +316,6 @@ int main()
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
         glfwPollEvents();
-
     }
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -309,7 +327,7 @@ int main()
 // --- Implementace pomocných funkcí ---
 void processInput(GLFWwindow *window) {
 
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     if (io.WantCaptureKeyboard) {
         return;
     }
@@ -339,9 +357,9 @@ void processInput(GLFWwindow *window) {
         camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
 
     if (io.WantCaptureMouse) {
         return;
@@ -366,25 +384,29 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
     camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-unsigned int loadTexture(char const * path) {
+unsigned int loadTexture(char const *path) {
     unsigned int textureID;
     glGenTextures(1, &textureID);
     int width, height, nrComponents;
     unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
     if (data) {
         GLenum format = GL_RGB;
-        if (nrComponents == 1) format = GL_RED;
-        else if (nrComponents == 4) format = GL_RGBA;
+        if (nrComponents == 1)
+            format = GL_RED;
+        else if (nrComponents == 4)
+            format = GL_RGBA;
         glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+                     GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                        GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     } else {
         std::cout << "Texture failed to load at path: " << path << std::endl;
@@ -393,7 +415,8 @@ unsigned int loadTexture(char const * path) {
     return textureID;
 }
 
-unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPath) {
+unsigned int createShaderProgram(const char *vertexPath,
+                                 const char *fragmentPath) {
     std::string vertexCode;
     std::string fragmentCode;
     std::ifstream vShaderFile;
@@ -410,11 +433,11 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
         fShaderFile.close();
         vertexCode = vShaderStream.str();
         fragmentCode = fShaderStream.str();
-    } catch (std::ifstream::failure& e) {
+    } catch (std::ifstream::failure &e) {
         std::cout << "CHYBA::SHADER::SOUBOR_NEBYL_USPESNE_PRECTEN" << std::endl;
     }
-    const char* vShaderCode = vertexCode.c_str();
-    const char* fShaderCode = fragmentCode.c_str();
+    const char *vShaderCode = vertexCode.c_str();
+    const char *fShaderCode = fragmentCode.c_str();
     unsigned int vertex, fragment;
     int success;
     char infoLog[512];
@@ -424,7 +447,8 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(vertex, 512, NULL, infoLog);
-        std::cout << "CHYBA::SHADER::VERTEX::KOMPILACE_NEUSPESNA\n" << infoLog << std::endl;
+        std::cout << "CHYBA::SHADER::VERTEX::KOMPILACE_NEUSPESNA\n"
+                  << infoLog << std::endl;
     };
     fragment = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragment, 1, &fShaderCode, NULL);
@@ -432,7 +456,8 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(fragment, 512, NULL, infoLog);
-        std::cout << "CHYBA::SHADER::FRAGMENT::KOMPILACE_NEUSPESNA\n" << infoLog << std::endl;
+        std::cout << "CHYBA::SHADER::FRAGMENT::KOMPILACE_NEUSPESNA\n"
+                  << infoLog << std::endl;
     };
     unsigned int program = glCreateProgram();
     glAttachShader(program, vertex);
@@ -441,7 +466,8 @@ unsigned int createShaderProgram(const char* vertexPath, const char* fragmentPat
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
         glGetProgramInfoLog(program, 512, NULL, infoLog);
-        std::cout << "CHYBA::PROGRAM::LINKOVANI_NEUSPESNE\n" << infoLog << std::endl;
+        std::cout << "CHYBA::PROGRAM::LINKOVANI_NEUSPESNE\n"
+                  << infoLog << std::endl;
     }
     glDeleteShader(vertex);
     glDeleteShader(fragment);

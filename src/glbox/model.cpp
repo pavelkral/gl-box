@@ -45,9 +45,15 @@ unsigned int TextureFromFile(const char* path, const std::string& directory, boo
     return textureID;
 }
 
+Model::Model(const std::string &path, Material *material) {
+    loadModel(path);
+    this->material = material;
+
+}
 void Model::loadModel(const std::string& path)
 {
     Assimp::Importer importer;
+    //importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_TANGENTS_AND_BITANGENTS);
     const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
 
     // aiProcess_CalcTangentSpace je klicovy pro normal maps
@@ -131,7 +137,7 @@ StaticMesh Model::processMesh(aiMesh* mesh, const aiScene* scene)
         textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
     }
 
-    return StaticMesh(vertices, indices, textures);
+    return StaticMesh(vertices, indices,  material);
 }
 
 std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName)
@@ -164,17 +170,33 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType 
     return textures;
 }
 
-void Model::Draw(unsigned int shaderID, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix)
+
+void Model::Draw( const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix)
 {
-    glUseProgram(shaderID);
+    //glUseProgram(shaderID);
     // Nastaveni spolecnych uniform
-    glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(glGetUniformLocation(shaderID, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniformMatrix4fv(glGetUniformLocation(shaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+   // glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+   // glUniformMatrix4fv(glGetUniformLocation(shaderID, "view"), 1, GL_FALSE, glm::value_ptr(view));
+   // glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+   // glUniformMatrix4fv(glGetUniformLocation(shaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
     for(unsigned int i = 0; i < meshes.size(); i++){
-        meshes[i].Draw(shaderID);
+        meshes[i].Draw(transform.GetModelMatrix(), view, projection, lightSpaceMatrix);
         //std::cout << meshes.size();
     }
+}
+void Model::DrawForShadow(unsigned int depthShaderID, const glm::mat4& lightSpaceMatrix) const {
+
+    glUseProgram(depthShaderID);
+    glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+  //  glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(transform.GetModelMatrix()));
+
+    for(unsigned int i = 0; i < meshes.size(); i++){
+        //meshes[i].Draw(shaderID);
+        glBindVertexArray(meshes[i].VAO);
+        glDrawElements(GL_TRIANGLES, meshes[i].vertexCount, GL_UNSIGNED_INT, 0); // Používame glDrawElements
+        glBindVertexArray(0);
+        //std::cout << meshes.size();
+    }
+
 }
