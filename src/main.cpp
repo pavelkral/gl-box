@@ -206,7 +206,9 @@ int main() {
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model.setFallbackMetallic(0.1f);
     model.setFallbackSmoothness(0.3f);
-
+    model.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
+    model.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
+    model.transform.scale    = glm::vec3(0.01f);
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
     // }
@@ -292,7 +294,8 @@ int main() {
         // lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
-      //  ourModel.DrawForShadow(depthShaderID, lightSpaceMatrix);
+      // cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
+        model.DrawForShadow(depthShaderID, lightSpaceMatrix);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // --- 2. pass geometry ---
@@ -310,10 +313,7 @@ int main() {
         cube.Draw(view, projection, lightSpaceMatrix);
 
         glm::mat4 modelM = glm::mat4(1.0f);
-        model.draw(glm::value_ptr(modelM),
-                   glm::value_ptr(view),
-                   glm::value_ptr(projection),
-                   glm::value_ptr(camera.GetViewMatrix()));
+        model.draw(view,projection, camera.Position);
        // ourModel.Draw( view, projection, lightSpaceMatrix);
 
         ImGui::Render();

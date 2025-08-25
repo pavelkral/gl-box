@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Transform.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -24,12 +26,16 @@
 #define aiTextureType_SHININESS aiTextureType_SPECULAR
 #endif
 
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <filesystem>
 #include <iostream>
+
+
 
 // Pomocná utilita – kompilace shaderu a link programu
 static GLuint compileShader(GLenum type, const char* src){
@@ -61,7 +67,6 @@ static GLuint linkProgram(GLuint vs, GLuint fs){
 }
 
 // Jednoduchý shader (Blinn-Phong + normal map + metalness/smoothness)
-// - pokud textura neexistuje, používá fallback barvu/faktory
 static const char* kDefaultVS = R"GLSL(
 #version 330 core
 layout(location=0) in vec3 aPos;
@@ -83,7 +88,6 @@ void main(){
     vWorldPos = worldPos.xyz;
     vUV = aUV;
 
-    // TBN z model matice (předpoklad uniform scale)
     vec3 T = mat3(uModel) * aTangent;
     vec3 B = mat3(uModel) * aBitangent;
     vec3 N = mat3(uModel) * aNormal;
@@ -105,7 +109,7 @@ struct TexSet {
     sampler2D albedo;
     sampler2D normal;
     sampler2D metallic;
-    sampler2D smoothness; // 1 = zrcadlový, 0 = drsný
+    sampler2D smoothness;
 };
 
 uniform TexSet uTex;
@@ -115,11 +119,10 @@ uniform bool uHasNormal;
 uniform bool uHasMetallic;
 uniform bool uHasSmoothness;
 
-uniform vec3 uAlbedoColor;      // fallback barva
-uniform float uMetallicFactor;   // fallback
-uniform float uSmoothnessFactor; // fallback
+uniform vec3 uAlbedoColor;
+uniform float uMetallicFactor;
+uniform float uSmoothnessFactor;
 
-// Jednoduché světlo
 uniform vec3 uLightDir = normalize(vec3(-0.4, -1.0, -0.2));
 uniform vec3 uLightColor = vec3(1.0);
 uniform vec3 uCameraPos;
@@ -134,9 +137,9 @@ vec3 getNormal(){
 }
 
 void main(){
-    vec3 albedo = uHasAlbedo ? pow(texture(uTex.albedo, vUV).rgb, vec3(2.2)) : uAlbedoColor; // sRGB->lin
+    vec3 albedo = uHasAlbedo ? pow(texture(uTex.albedo, vUV).rgb, vec3(2.2)) : uAlbedoColor;
     float metallic = uHasMetallic ? texture(uTex.metallic, vUV).r : uMetallicFactor;
-    float smoothness = uHasSmoothness ? texture(uTex.smoothness, vUV).r : uSmoothnessFactor; // [0..1]
+    float smoothness = uHasSmoothness ? texture(uTex.smoothness, vUV).r : uSmoothnessFactor;
 
     vec3 N = getNormal();
     vec3 L = normalize(-uLightDir);
@@ -144,10 +147,8 @@ void main(){
     vec3 H = normalize(L+V);
 
     float NdotL = max(dot(N,L), 0.0);
-    float NdotV = max(dot(N,V), 0.0);
     float NdotH = max(dot(N,H), 0.0);
 
-    // Blinn-Phong approx s řízením lesku přes smoothness
     float shininess = mix(8.0, 128.0, smoothness);
     float spec = pow(max(NdotH, 0.0), shininess);
 
@@ -155,10 +156,8 @@ void main(){
     vec3 specular = mix(vec3(0.04), albedo, metallic) * spec * NdotL;
 
     vec3 color = (diffuse + specular) * uLightColor;
-    // jednoduchý ambient
     color += albedo * 0.05;
 
-    // gamma
     color = pow(color, vec3(1.0/2.2));
     FragColor = vec4(color, 1.0);
 }
@@ -166,7 +165,6 @@ void main(){
 
 class ModelFBX {
 public:
-    // Konstrukce: očekává platný GL kontext. Načte model i shadery.
     ModelFBX(const std::string& path,
              const std::string& vsSrc = kDefaultVS,
              const std::string& fsSrc = kDefaultFS,
@@ -176,7 +174,7 @@ public:
         loadModel(path, flipUVs);
         createProgram(vsSrc.c_str(), fsSrc.c_str());
     }
-
+    Transform transform;
     ~ModelFBX(){
         for(auto& m : meshes_){
             glDeleteVertexArrays(1, &m.vao);
@@ -187,37 +185,43 @@ public:
         if(program_) glDeleteProgram(program_);
     }
 
-    // Nastavení fallbacků
     void setFallbackAlbedo(float r, float g, float b){ fallbackAlbedo_[0]=r; fallbackAlbedo_[1]=g; fallbackAlbedo_[2]=b; }
     void setFallbackMetallic(float v){ fallbackMetallic_ = v; }
     void setFallbackSmoothness(float v){ fallbackSmoothness_ = v; }
 
-    // Vykreslení – uživatel předá model/view/proj a pozici kamery (float[3])
-    void draw(const float* model, const float* view, const float* proj, const float* cameraPos){
+    void DrawForShadow(unsigned int depthShaderID, const glm::mat4& lightSpaceMatrix) const {
+        glUseProgram(depthShaderID);
+        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(transform.GetModelMatrix()));
+        for(const auto& m : meshes_){
+
+
+            glBindVertexArray(m.vao);
+            glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        }
+
+    }
+    void draw(const glm::mat4& view,
+              const glm::mat4& proj,
+              const glm::vec3& cameraPos){
         glUseProgram(program_);
+        glm::mat4 model = transform.GetModelMatrix();
+        glUniformMatrix4fv(glGetUniformLocation(program_, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(program_, "uView"),  1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(program_, "uProj"),  1, GL_FALSE, glm::value_ptr(proj));
+        glUniform3fv(glGetUniformLocation(program_, "uCameraPos"), 1, glm::value_ptr(cameraPos));
 
-        GLint locModel = glGetUniformLocation(program_, "uModel");
-        GLint locView  = glGetUniformLocation(program_, "uView");
-        GLint locProj  = glGetUniformLocation(program_, "uProj");
-        GLint locCam   = glGetUniformLocation(program_, "uCameraPos");
-        glUniformMatrix4fv(locModel, 1, GL_FALSE, model);
-        glUniformMatrix4fv(locView,  1, GL_FALSE, view);
-        glUniformMatrix4fv(locProj,  1, GL_FALSE, proj);
-        glUniform3fv(locCam, 1, cameraPos);
-
-        // pevné jednotky textur
         glUniform1i(glGetUniformLocation(program_, "uTex.albedo"), 0);
         glUniform1i(glGetUniformLocation(program_, "uTex.normal"), 1);
         glUniform1i(glGetUniformLocation(program_, "uTex.metallic"), 2);
         glUniform1i(glGetUniformLocation(program_, "uTex.smoothness"), 3);
 
-        // fallbacky
         glUniform3fv(glGetUniformLocation(program_, "uAlbedoColor"), 1, fallbackAlbedo_);
         glUniform1f(glGetUniformLocation(program_, "uMetallicFactor"), fallbackMetallic_);
         glUniform1f(glGetUniformLocation(program_, "uSmoothnessFactor"), fallbackSmoothness_);
 
         for(const auto& m : meshes_){
-            // bind textur + flagy
             bindTextureWithFallback(m.texAlbedo, 0, "uHasAlbedo");
             bindTextureWithFallback(m.texNormal, 1, "uHasNormal");
             bindTextureWithFallback(m.texMetallic, 2, "uHasMetallic");
@@ -236,7 +240,6 @@ private:
     struct Mesh {
         GLuint vao=0, vbo=0, ebo=0;
         GLsizei indexCount=0;
-        // textury (0 = neexistuje)
         GLuint texAlbedo=0;
         GLuint texNormal=0;
         GLuint texMetallic=0;
@@ -248,7 +251,7 @@ private:
     GLuint program_ = 0;
     float fallbackAlbedo_[3] = {0.8f, 0.8f, 0.85f};
     float fallbackMetallic_ = 0.0f;
-    float fallbackSmoothness_ = 0.2f; // spíše matné
+    float fallbackSmoothness_ = 0.2f;
 
     std::vector<GLuint> ownedTextures_;
     std::unordered_map<std::string, GLuint> cacheTextures_;
@@ -298,7 +301,6 @@ private:
             aiVector3D b = mesh->mBitangents ? mesh->mBitangents[i] : aiVector3D(0,0,1);
             aiVector3D uv = mesh->mTextureCoords[0] ? mesh->mTextureCoords[0][i] : aiVector3D(0,0,0);
 
-            // layout: pos(3) normal(3) uv(2) tangent(3) bitangent(3)
             vertices.insert(vertices.end(), {p.x,p.y,p.z, n.x,n.y,n.z, uv.x,uv.y, t.x,t.y,t.z, b.x,b.y,b.z});
         }
         for(unsigned f=0; f<mesh->mNumFaces; ++f){
@@ -327,30 +329,14 @@ private:
         glBindVertexArray(0);
         out.indexCount = static_cast<GLsizei>(indices.size());
 
-        // Materiály/textury
         if(mesh->mMaterialIndex >= 0){
             aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
-            out.texAlbedo = loadFirstTexture(mat, {aiTextureType_BASE_COLOR, aiTextureType_DIFFUSE});
+            out.texAlbedo = loadFirstTexture(mat, {aiTextureType_DIFFUSE});
             out.texNormal = loadFirstTexture(mat, {aiTextureType_NORMALS, aiTextureType_HEIGHT});
-            // metallic může být v různých slotech v závislosti na DCC/exportu
-            out.texMetallic = loadFirstTexture(mat, {aiTextureType_METALNESS, aiTextureType_SPECULAR});
-            // smoothness/roughness – zkusíme více variant (smoothness = 1 - roughness)
-            GLuint rough = loadFirstTexture(mat, {aiTextureType_DIFFUSE_ROUGHNESS});
-            if(rough){
-                out.texSmoothness = createRoughnessViewAsSmoothness(rough); // jednoduché klonování (bez přemapování -> používáme přímo roughness a v shaderu interpretujeme jako smoothness?
-                // Pozn.: Pro přesnost by bylo vhodné invertovat, ale texturu neměníme – vyřešíme v shaderu, pokud bychom chtěli. Zde přímo používáme roughness jako smoothness fallback via uniform -> pro texturu necháme takto.
-                // Pro jednoduchost: pokud máme roughness texturu, použijeme ji přímo jako smoothness (uživatel si může upravit shader).
-                out.texSmoothness = rough;
-            } else {
-                out.texSmoothness = loadFirstTexture(mat, {aiTextureType_SHININESS});
-            }
+            out.texMetallic = loadFirstTexture(mat, {aiTextureType_SPECULAR});
+            out.texSmoothness = loadFirstTexture(mat, {aiTextureType_SHININESS});
         }
         return out;
-    }
-
-    GLuint createRoughnessViewAsSmoothness(GLuint tex){
-        // Jednoduše vrátíme původní id – neměníme data. (Místo kopírování by šlo v shaderu invertovat.)
-        return tex;
     }
 
     GLuint loadFirstTexture(aiMaterial* mat, std::initializer_list<aiTextureType> types){
@@ -365,16 +351,16 @@ private:
     }
 
     std::string resolvePath(const std::string& p){
-        // Pokud Assimp vrátí absolutní, použijeme; jinak složíme s adresářem modelu
         std::filesystem::path path(p);
         if(path.is_absolute()) return path.string();
         auto joined = std::filesystem::path(directory_) / path;
         if(std::filesystem::exists(joined)) return joined.string();
-        // fallback: zkuste jen název souboru v dir
         auto fname = std::filesystem::path(p).filename();
         joined = std::filesystem::path(directory_) / fname;
         return joined.string();
     }
+
+
 
     GLuint loadTexture2D(const std::string& file){
         auto it = cacheTextures_.find(file);
