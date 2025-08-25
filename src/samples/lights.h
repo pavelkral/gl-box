@@ -13,8 +13,10 @@
 #include "glfw/glfw3.h"
 #include "../lib/ThreadPool.h"
 #include "../lib/stb/image.h"
+
+
 // ------------------------------
-// 6 rotujících texturovaných krychlí (GLFW + GLAD + GLM)
+//
 // Vylepšení: FPS kamera (WASD + myš), Blinn-Phong osvětlení, normály, toggly
 // ------------------------------
 // ------------------------------------------------------------

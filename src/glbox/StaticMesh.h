@@ -59,13 +59,13 @@
 class StaticMesh {
 
 public:
-    unsigned int VAO, VBO, EBO; // Pridávame EBO
+    unsigned int VAO, VBO, EBO;
     unsigned int vertexCount;
     Material* material;
     std::vector<unsigned int> indices;
     std::vector<float> vertices;
     std::vector<Texture> textures;
-    // Nový konštruktor, ktorý prijíma vertexy AJ indexy
+
     StaticMesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices, Material* mat)
         : material(mat) {
         glGenVertexArrays(1, &VAO);
@@ -92,7 +92,7 @@ public:
 
         glBindVertexArray(0);
 
-        vertexCount = indices.size(); // Počet indexov, nie vertexov
+        vertexCount = indices.size(); //
     }
 
     ~StaticMesh() {

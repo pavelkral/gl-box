@@ -1,15 +1,13 @@
 #pragma once
 
 #include "Transform.h"
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <stb_image.h>
-
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+
 #ifndef aiTextureType_BASE_COLOR
 #define aiTextureType_BASE_COLOR aiTextureType_DIFFUSE
 #endif
@@ -28,7 +26,6 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -163,18 +160,27 @@ void main(){
 }
 )GLSL";
 
+struct Mesh {
+    GLuint vao=0, vbo=0, ebo=0;
+    GLsizei indexCount=0;
+    GLuint texAlbedo=0;
+    GLuint texNormal=0;
+    GLuint texMetallic=0;
+    GLuint texSmoothness=0;
+};
+
+
 class ModelFBX {
+
 public:
-    ModelFBX(const std::string& path,
-             const std::string& vsSrc = kDefaultVS,
-             const std::string& fsSrc = kDefaultFS,
-             bool flipUVs = false)
+
+    ModelFBX(const std::string& path, const std::string& vsSrc = kDefaultVS,const std::string& fsSrc = kDefaultFS,bool flipUVs = false)
     {
         directory_ = std::filesystem::path(path).parent_path().string();
         loadModel(path, flipUVs);
         createProgram(vsSrc.c_str(), fsSrc.c_str());
     }
-    Transform transform;
+
     ~ModelFBX(){
         for(auto& m : meshes_){
             glDeleteVertexArrays(1, &m.vao);
@@ -185,6 +191,7 @@ public:
         if(program_) glDeleteProgram(program_);
     }
 
+    Transform transform;
     void setFallbackAlbedo(float r, float g, float b){ fallbackAlbedo_[0]=r; fallbackAlbedo_[1]=g; fallbackAlbedo_[2]=b; }
     void setFallbackMetallic(float v){ fallbackMetallic_ = v; }
     void setFallbackSmoothness(float v){ fallbackSmoothness_ = v; }
@@ -202,9 +209,8 @@ public:
         }
 
     }
-    void draw(const glm::mat4& view,
-              const glm::mat4& proj,
-              const glm::vec3& cameraPos){
+    void draw(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& cameraPos){
+
         glUseProgram(program_);
         glm::mat4 model = transform.GetModelMatrix();
         glUniformMatrix4fv(glGetUniformLocation(program_, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
@@ -237,14 +243,6 @@ public:
     GLuint program() const { return program_; }
 
 private:
-    struct Mesh {
-        GLuint vao=0, vbo=0, ebo=0;
-        GLsizei indexCount=0;
-        GLuint texAlbedo=0;
-        GLuint texNormal=0;
-        GLuint texMetallic=0;
-        GLuint texSmoothness=0;
-    };
 
     std::vector<Mesh> meshes_;
     std::string directory_;
@@ -252,9 +250,9 @@ private:
     float fallbackAlbedo_[3] = {0.8f, 0.8f, 0.85f};
     float fallbackMetallic_ = 0.0f;
     float fallbackSmoothness_ = 0.2f;
-
     std::vector<GLuint> ownedTextures_;
     std::unordered_map<std::string, GLuint> cacheTextures_;
+
 
     void createProgram(const char* vs, const char* fs){
         GLuint v = compileShader(GL_VERTEX_SHADER, vs);
@@ -291,6 +289,7 @@ private:
     }
 
     Mesh processMesh(aiMesh* mesh, const aiScene* scene){
+
         std::vector<float> vertices; vertices.reserve(mesh->mNumVertices * 14);
         std::vector<unsigned int> indices; indices.reserve(mesh->mNumFaces * 3);
 

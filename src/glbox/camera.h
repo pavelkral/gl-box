@@ -4,9 +4,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-
-
-// Enumerace pro směry pohybu kamery
 enum Camera_Movement {
     FORWARD,
     BACKWARD,
