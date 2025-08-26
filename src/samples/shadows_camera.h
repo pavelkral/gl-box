@@ -22,7 +22,7 @@
 #include <string>
 
 // Přejmenujte Camera.h podle názvu souboru s vaší kamerou
-#include "../glbox/camera.h"
+#include "../glbox/Camera.h"
 
 // Prototypy funkcí
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);

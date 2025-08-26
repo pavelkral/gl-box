@@ -63,7 +63,7 @@ static GLuint linkProgram(GLuint vs, GLuint fs){
     return p;
 }
 
-// Jednoduchý shader (Blinn-Phong + normal map + metalness/smoothness)
+// shader (Blinn-Phong + normal map + metalness/smoothness)
 static const char* kDefaultVS = R"GLSL(
 #version 330 core
 layout(location=0) in vec3 aPos;
@@ -120,8 +120,10 @@ uniform vec3 uAlbedoColor;
 uniform float uMetallicFactor;
 uniform float uSmoothnessFactor;
 
-uniform vec3 uLightDir = normalize(vec3(-0.4, -1.0, -0.2));
-uniform vec3 uLightColor = vec3(1.0);
+// --- Nové uniformy pro světlo ---
+uniform vec3 uLightPos;
+uniform vec3 uLightColor;
+uniform float uAmbientStrength;
 uniform vec3 uCameraPos;
 
 vec3 getNormal(){
@@ -139,7 +141,9 @@ void main(){
     float smoothness = uHasSmoothness ? texture(uTex.smoothness, vUV).r : uSmoothnessFactor;
 
     vec3 N = getNormal();
-    vec3 L = normalize(-uLightDir);
+
+    // Směr ke světlu
+    vec3 L = normalize(uLightPos - vWorldPos);
     vec3 V = normalize(uCameraPos - vWorldPos);
     vec3 H = normalize(L+V);
 
@@ -147,17 +151,22 @@ void main(){
     float NdotH = max(dot(N,H), 0.0);
 
     float shininess = mix(8.0, 128.0, smoothness);
-    float spec = pow(max(NdotH, 0.0), shininess);
+    float spec = pow(NdotH, shininess);
 
+    // Osvětlení
     vec3 diffuse = albedo * NdotL;
     vec3 specular = mix(vec3(0.04), albedo, metallic) * spec * NdotL;
 
-    vec3 color = (diffuse + specular) * uLightColor;
-    color += albedo * 0.05;
+    // Ambient složka (nastavitelná)
+    vec3 ambient = albedo * uAmbientStrength;
 
+    vec3 color = ambient + (diffuse + specular) * uLightColor;
+
+    // Gamma korekce
     color = pow(color, vec3(1.0/2.2));
     FragColor = vec4(color, 1.0);
 }
+
 )GLSL";
 
 struct Mesh {
@@ -171,6 +180,17 @@ struct Mesh {
 
 
 class ModelFBX {
+
+private:
+
+    std::vector<Mesh> meshes_;
+    std::string directory_;
+    GLuint program_ = 0;
+    float fallbackAlbedo_[3] = {0.8f, 0.8f, 0.85f};
+    float fallbackMetallic_ = 0.0f;
+    float fallbackSmoothness_ = 0.2f;
+    std::vector<GLuint> ownedTextures_;
+    std::unordered_map<std::string, GLuint> cacheTextures_;
 
 public:
 
@@ -201,14 +221,24 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
         glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(transform.GetModelMatrix()));
         for(const auto& m : meshes_){
-
-
             glBindVertexArray(m.vao);
             glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, 0);
             glBindVertexArray(0);
         }
 
     }
+    void setLightProperties(const glm::vec3& lightPos,
+                            const glm::vec3& lightColor,
+                            float ambientStrength,
+                            const glm::vec3& cameraPos)
+    {
+        glUseProgram(program_);
+        glUniform3fv(glGetUniformLocation(program_, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(program_, "uLightColor"), 1, glm::value_ptr(lightColor));
+        glUniform1f(glGetUniformLocation(program_, "uAmbientStrength"), ambientStrength);
+        glUniform3fv(glGetUniformLocation(program_, "uCameraPos"), 1, glm::value_ptr(cameraPos));
+    }
+
     void draw(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& cameraPos){
 
         glUseProgram(program_);
@@ -243,15 +273,6 @@ public:
     GLuint program() const { return program_; }
 
 private:
-
-    std::vector<Mesh> meshes_;
-    std::string directory_;
-    GLuint program_ = 0;
-    float fallbackAlbedo_[3] = {0.8f, 0.8f, 0.85f};
-    float fallbackMetallic_ = 0.0f;
-    float fallbackSmoothness_ = 0.2f;
-    std::vector<GLuint> ownedTextures_;
-    std::unordered_map<std::string, GLuint> cacheTextures_;
 
 
     void createProgram(const char* vs, const char* fs){
@@ -330,6 +351,22 @@ private:
 
         if(mesh->mMaterialIndex >= 0){
             aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
+            aiString name;
+            mat->Get(AI_MATKEY_NAME, name);   // bezpečný způsob
+            std::cout << "Mesh has material: "
+                      << (name.length > 0 ? name.C_Str() : "<unnamed>")
+                      << std::endl;
+
+            for (int type = aiTextureType_DIFFUSE; type <= aiTextureType_UNKNOWN; ++type) {
+                aiTextureType t = static_cast<aiTextureType>(type);
+                for (unsigned int i = 0; i < mat->GetTextureCount(t); ++i) {
+                    aiString texPath;
+                    if (mat->GetTexture(t, i, &texPath) == AI_SUCCESS) {
+                        std::cout << "  Texture [" << type << "] = " << texPath.C_Str() << std::endl;
+                    }
+                }
+            }
+
             out.texAlbedo = loadFirstTexture(mat, {aiTextureType_DIFFUSE});
             out.texNormal = loadFirstTexture(mat, {aiTextureType_NORMALS, aiTextureType_HEIGHT});
             out.texMetallic = loadFirstTexture(mat, {aiTextureType_SPECULAR});
@@ -341,9 +378,15 @@ private:
     GLuint loadFirstTexture(aiMaterial* mat, std::initializer_list<aiTextureType> types){
         for(auto type : types){
             if(mat->GetTextureCount(type) > 0){
-                aiString str; mat->GetTexture(type, 0, &str);
+                aiString str;
+                mat->GetTexture(type, 0, &str);
                 std::string p = str.C_Str();
-                return loadTexture2D(resolvePath(p));
+                std::string resolved = resolvePath(p);
+
+                std::cout << "Texture found: " << p
+                          << " -> resolved path: " << resolved << std::endl;
+
+                return loadTexture2D(resolved);
             }
         }
         return 0;
@@ -352,11 +395,24 @@ private:
     std::string resolvePath(const std::string& p){
         std::filesystem::path path(p);
         if(path.is_absolute()) return path.string();
+
+        // 1) hledání přímo vedle FBX
         auto joined = std::filesystem::path(directory_) / path;
         if(std::filesystem::exists(joined)) return joined.string();
+
+        // 2) hledání podle jména ve složce FBX
         auto fname = std::filesystem::path(p).filename();
         joined = std::filesystem::path(directory_) / fname;
-        return joined.string();
+        if(std::filesystem::exists(joined)) return joined.string();
+
+        // 3) hledání v podadresáři Textures/
+        joined = std::filesystem::path(directory_) / "Textures" / fname;
+        if(std::filesystem::exists(joined)) return joined.string();
+
+        std::cerr << "Warning: textura nenalezena: " << p << std::endl;
+        std::cout << "Texture found: " << p
+                  << " -> resolved path: " << fname.string() << std::endl;
+        return fname.string(); // fallback
     }
 
 

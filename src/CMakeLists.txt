@@ -7,7 +7,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Sources
 set(SOURCES
     main.cpp
-
     lib/glad/src/glad.cpp
     lib/stb/image.cpp
     lib/imgui/imgui.cpp
@@ -21,7 +20,6 @@ set(SOURCES
 
 # Headers
 set(HEADERS
-
     lib/ThreadPool.h
     lib/glad/include/KHR/khrplatform.h
     lib/glad/include/glad/glad.h
@@ -54,19 +52,18 @@ include_directories(
 
 # Add executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
+    glbox/Transform.h
+    glbox/Material.h
+    glbox/StaticMesh.h
+    glbox/SceneObject.h
+    glbox/Model.h
+    glbox/Camera.h
+
     samples/cubes.h
     samples/lights.h
     samples/sample.h
     samples/shadows.h
     samples/shadows_camera.h
-
-    glbox/camera.h
-    glbox/Transform.h
-    glbox/Material.h
-    glbox/StaticMesh.h
-    glbox/SceneObject.h
-    glbox/model.h
-
 
 )
 

@@ -91,8 +91,6 @@ public:
         } else {
             glUniform1i(loc, textures.size());
         }
-
-
         // Dynamic texture binding
         unsigned int diffuseNr = 1;
         unsigned int normalNr = 1;
@@ -108,7 +106,7 @@ public:
             glUniform1i(glGetUniformLocation(this->shaderProgramID, (name + number).c_str()), i);
             glBindTexture(GL_TEXTURE_2D, this->textures[i].id);
         }
-        // **NOVÝ KÓD PRO SHADOW MAP**
+        // ** SHADOW MAP**
         glActiveTexture(GL_TEXTURE0 + textures.size());
         glBindTexture(GL_TEXTURE_2D, this->shadowMapID);
         glUniform1i(glGetUniformLocation(this->shaderProgramID, "shadowMap"), textures.size());

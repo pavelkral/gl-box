@@ -6,10 +6,8 @@ CMakeLists.text.user
 .vs/
 CMakeCache.txt
 CMakeFiles/
-assets/
+
 cmake_install.cmake
 install_manifest.txt
 
 # irrklang
-libs/
-include/

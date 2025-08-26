@@ -144,36 +144,21 @@ int main() {
 
     unsigned int floorTexID = loadTexture("floor.png");
     unsigned int brickTexID = loadTexture("anime.png");
-    // unsigned int depthMapID; // Získané z framebufferu
     unsigned int modeTexID = loadTexture("anime.png");
-    // 2. Vytvoření dvou sad textur
-    std::vector<Texture> floorTextures = {
-                                          {floorTexID, "texture_diffuse", "floor.png"}};
-    std::vector<Texture> brickTextures = {
-                                          {brickTexID, "texture_diffuse", "fl.png"}};
-    std::vector<Texture> modelTextures = {
-                                          {brickTexID, "texture_diffuse", "fl.png"}};
 
+    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
+    std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
+    std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
     // 3. Vytvoření instancí Material, každá s vlastním shaderem a texturou
-    Material floorMaterial("shaders/basic_texture_shader.vert",
-                           "shaders/basic_texture_shader.frag", floorTextures,
-                           depthMap);
-    Material cubeMaterial("shaders/basic_texture_shader.vert",
-                          "shaders/basic_texture_shader.frag", brickTextures,
-                          depthMap);
-    Material modelMaterial("shaders/basic_texture_shader.vert",
-                          "shaders/basic_texture_shader.frag", modelTextures,
-                          depthMap);
-    StaticMesh cubeMesh(
-        std::vector<float>(std::begin(indexedCubeVertices),
-                           std::end(indexedCubeVertices)),
-        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
-        &cubeMaterial);
-    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),
-                                            std::end(indexedPlaneVertices)),
-                         std::vector<unsigned int>(std::begin(planeIndices),
-                                                   std::end(planeIndices)),
+    Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
+    Material cubeMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", brickTextures,depthMap);
+    Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
+    StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
+                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
+                        &cubeMaterial);
+    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
+                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),
                          &floorMaterial);
 
 
@@ -190,7 +175,7 @@ int main() {
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
-
+    //ModelFBX model("assets/models/EelDog/EelDog.fbx");
     ModelFBX model("assets/models/Player/Player.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model.setFallbackMetallic(0.1f);
@@ -255,38 +240,34 @@ int main() {
 
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Střed vaší scény
         // Dynamická velikost ortografické projekce
-        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,
-                                     near_plane, far_plane);
+        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
         // Kamera světla se vždy dívá na cíl
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
-        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,
-                                         camera.Position);
-        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,
-                                        camera.Position);
+        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+
+     model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
-        // --- 1.pass depth map ---
+        // --- 1.pass depth map for shadow
+
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
-
-        // ourModel.Draw(depthShaderID, modelTransform.GetModelMatrix(), lightView,
-        // lightProjection, lightSpaceMatrix);
         floor.DrawForShadow(depthShaderID, lightSpaceMatrix);
         cube.DrawForShadow(depthShaderID, lightSpaceMatrix);
         model.DrawForShadow(depthShaderID, lightSpaceMatrix);
-
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // --- 2. pass geometry ---
+
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glm::mat4 projection =
-            glm::perspective(glm::radians(45.0f),
-                                                (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
         //============================================================================draw
