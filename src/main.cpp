@@ -173,13 +173,13 @@ int main() {
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
     //ModelFBX model("assets/models/EelDog/EelDog.fbx");
-    ModelFBX model("assets/models/Player/Player.fbx");
+    ModelFBX model("assets/models/grenade/grenade.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model.setFallbackMetallic(0.1f);
     model.setFallbackSmoothness(0.3f);
     model.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
     model.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
-    model.transform.scale    = glm::vec3(0.01f);
+    model.transform.scale    = glm::vec3(0.51f);
 
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
