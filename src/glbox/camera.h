@@ -19,6 +19,7 @@ const float SENSITIVITY =  0.1f;
 const float ZOOM        =  45.0f;
 
 class Camera {
+
 public:
     // Atributy kamery
     glm::vec3 Position;

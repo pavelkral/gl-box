@@ -70,8 +70,9 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
-    //============================================================================imgui
-    // --- Geometry a textures ---
+    //============================================================================
+    // --- Geometry ---
+
     float indexedCubeVertices[] = {
         // Pozícia           // Normál             // UV súradnice
         -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 0.0f,
@@ -165,7 +166,7 @@ int main() {
                          &floorMaterial);
 
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
-    // Vytvoření objektů scény
+
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
     cube.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -185,9 +186,11 @@ int main() {
     model.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
     model.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
+
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
     // }
+
   //=======================main loop
 
     while (!glfwWindowShouldClose(window)) {
@@ -214,12 +217,10 @@ int main() {
         ImGui::Text("Nastaveni svetla");
         ImGui::ColorEdit3("Barva svetla", glm::value_ptr(lightColor));
         ImGui::SliderFloat("Ambientni sila", &ambientStrength, 0.0f, 1.0f);
-
         ImGui::Checkbox("Auto pohyb svetla", &autoLightMovement);
-
         ImGui::End();
 
-        //============================================================================imgui
+        //============================================================================input
         processInput(window);
 
         if (autoLightMovement) {
@@ -255,6 +256,7 @@ int main() {
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
+          //============================================================================draw shadows
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(depthShader.ID, lightSpaceMatrix);
@@ -268,13 +270,13 @@ int main() {
         glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
-        //============================================================================draw
+        //============================================================================draw geometry
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
-       // ourModel.Draw( view, projection, lightSpaceMatrix);
-        //============================================================================imgui
+
+        //============================================================================draw imgui
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -287,7 +289,7 @@ int main() {
     glfwTerminate();
     return 0;
 }
-//============================================================================input
+//============================================================================input functiona
 
 void processInput(GLFWwindow *window) {
 
