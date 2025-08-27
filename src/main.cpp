@@ -19,13 +19,10 @@
 #include "glbox/Shader.h"
 #include "glbox/Texture.h"
 
-
-
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
-
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
@@ -44,8 +41,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow *window =
-        glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -159,11 +155,9 @@ int main() {
     Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
 
     StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
-                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
-                        &cubeMaterial);
+                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),&cubeMaterial);
     StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
-                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),
-                         &floorMaterial);
+                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),&floorMaterial);
 
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
 
@@ -194,6 +188,7 @@ int main() {
   //=======================main loop
 
     while (!glfwWindowShouldClose(window)) {
+
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -232,11 +227,10 @@ int main() {
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 17.5f;
-        float orthoSize = 20.0f; // Výchozí velikost
+        float orthoSize = 20.0f;
         float lightX = lightPos.x;
         float lightZ = lightPos.z;
-        glm::vec3 cubePos = cube.transform.position;
-
+        //glm::vec3 cubePos = cube.transform.position;
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
         // Dynamická velikost ortografické projekce
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
@@ -246,7 +240,6 @@ int main() {
 
         floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
 
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
