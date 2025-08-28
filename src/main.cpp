@@ -128,7 +128,7 @@ int main() {
     model.setFallbackMetallic(0.1f);
     model.setFallbackSmoothness(0.3f);
     model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
-    model.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
+    model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
 
     ModelFBX model1("assets/models/grenade/grenade.fbx");

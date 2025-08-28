@@ -372,6 +372,15 @@ private:
             out.texMetallic = loadFirstTexture(mat, {aiTextureType_SPECULAR});
             out.texSmoothness = loadFirstTexture(mat, {aiTextureType_SHININESS});
         }
+        if(mesh->HasTextureCoords(0)) {
+            for(int i = 0; i < std::min<unsigned>(3, mesh->mNumVertices); i++) {
+                auto uv = mesh->mTextureCoords[0][i];
+                std::cout << "UV[" << i << "] = (" << uv.x << ", " << uv.y << ")\n";
+            }
+        } else {
+            std::cout << "Mesh has NO UVs\n";
+        }
+        std::cout << "Mesh has " << mesh->GetNumUVChannels() << " UV channels\n";
         return out;
     }
 
@@ -420,7 +429,7 @@ private:
     GLuint loadTexture2D(const std::string& file){
         auto it = cacheTextures_.find(file);
         if(it != cacheTextures_.end()) return it->second;
-
+        stbi_set_flip_vertically_on_load(true);
         int w,h,n; stbi_uc* data = stbi_load(file.c_str(), &w,&h,&n, 0);
         if(!data){
             std::cerr << "stb_image: nelze nacist texturu: " << file << std::endl;
