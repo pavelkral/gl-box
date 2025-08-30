@@ -64,11 +64,13 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/sample.h
     samples/old/shadows.h
     samples/old/shadows_camera.h
+    samples/deferred.h
 
     glbox/Shader.h
     glbox/geometry/CubeMesh.h
     glbox/geometry/PlaneMesh.h
     glbox/Texture.h
+
 
 )
 

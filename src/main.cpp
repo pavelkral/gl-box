@@ -99,9 +99,9 @@ int main() {
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
     //=======================================================scene setup
 
-    unsigned int floorTexID = loadTexture("floor.png");
-    unsigned int brickTexID = loadTexture("anime.png");
-    unsigned int modeTexID = loadTexture("anime.png");
+    unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("anime.png");
+    unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
@@ -150,7 +150,7 @@ int main() {
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
-  //=======================main loop
+    //=======================main loop
 
     while (!glfwWindowShouldClose(window)) {
 
@@ -215,7 +215,7 @@ int main() {
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
-          //============================================================================draw shadows
+        //============================================================================draw shadows
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(depthShader.ID, lightSpaceMatrix);

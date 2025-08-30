@@ -18,14 +18,13 @@
 #include "../glbox/Transform.h"
 #include "../glbox/Shader.h"
 #include "../glbox/Texture.h"
-
-
+#include "../glbox/geometry/CubeMesh.h"
+#include "../glbox/geometry/PlaneMesh.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
-
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
@@ -44,8 +43,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow *window =
-        glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -71,53 +69,7 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     //============================================================================
-    // --- Geometry ---
-
-    float indexedCubeVertices[] = {
-                                   // Pozícia           // Normál             // UV súradnice
-                                   -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 0.0f,
-                                   0.5f,  -0.5f, -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 0.0f,
-                                   0.5f,  0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 1.0f, 1.0f,
-                                   -0.5f, 0.5f,  -0.5f, 0.0f,  0.0f,  -1.0f, 0.0f, 1.0f,
-
-                                   -0.5f, -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 0.0f,
-                                   0.5f,  -0.5f, 0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 0.0f,
-                                   0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f, 1.0f,
-                                   -0.5f, 0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f, 1.0f,
-
-                                   -0.5f, 0.5f,  0.5f,  -1.0f, 0.0f,  0.0f,  1.0f, 0.0f,
-                                   -0.5f, 0.5f,  -0.5f, -1.0f, 0.0f,  0.0f,  1.0f, 1.0f,
-                                   -0.5f, -0.5f, -0.5f, -1.0f, 0.0f,  0.0f,  0.0f, 1.0f,
-                                   -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f,  0.0f,  0.0f, 0.0f,
-
-                                   0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
-                                   0.5f,  0.5f,  -0.5f, 1.0f,  0.0f,  0.0f,  1.0f, 1.0f,
-                                   0.5f,  -0.5f, -0.5f, 1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-                                   0.5f,  -0.5f, 0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
-
-                                   -0.5f, -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  0.0f, 1.0f,
-                                   0.5f,  -0.5f, -0.5f, 0.0f,  -1.0f, 0.0f,  1.0f, 1.0f,
-                                   0.5f,  -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,  1.0f, 0.0f,
-                                   -0.5f, -0.5f, 0.5f,  0.0f,  -1.0f, 0.0f,  0.0f, 0.0f,
-
-                                   -0.5f, 0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
-                                   0.5f,  0.5f,  -0.5f, 0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
-                                   0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-                                   -0.5f, 0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f};
-
-    unsigned int cubeIndices[] = {0,  1,  2,  2,  3,  0,  4,  5,  6,  6,  7,  4,
-                                  8,  9,  10, 10, 11, 8,  12, 13, 14, 14, 15, 12,
-                                  16, 17, 18, 18, 19, 16, 20, 21, 22, 22, 23, 20};
-
-
-    float indexedPlaneVertices[] = {
-                                    // Pozícia             // Normál             // UV
-                                    25.0f,  -0.5f, 25.0f,  0.0f, 1.0f, 0.0f, 10.0f, 0.0f,
-                                    25.0f,  -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 10.0f, 10.0f,
-                                    -25.0f, -0.5f, -25.0f, 0.0f, 1.0f, 0.0f, 0.0f,  10.0f,
-                                    -25.0f, -0.5f, 25.0f,  0.0f, 1.0f, 0.0f, 0.0f,  0.0f};
-
-    unsigned int planeIndices[] = {0, 1, 2, 0, 2, 3};
+    // --- DEPTH BUFFER SHADOWS ---
 
     const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
     unsigned int depthMapFBO;
@@ -144,8 +96,8 @@ int main() {
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    //=======================================================scene setup
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
+    //=======================================================scene setup
 
     unsigned int floorTexID = loadTexture("floor.png");
     unsigned int brickTexID = loadTexture("anime.png");
@@ -160,41 +112,48 @@ int main() {
     Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
 
     StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
-                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),
-                        &cubeMaterial);
+                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),&cubeMaterial);
     StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
-                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),
-                         &floorMaterial);
+                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),&floorMaterial);
 
 
 
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
-    cube.transform.position = glm::vec3(0.0f, 1.0f, 0.0f);
+    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
+    ModelFBX model("assets/models/grenade/untitled.fbx");
+    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
+    model.setFallbackMetallic(0.1f);
+    model.setFallbackSmoothness(0.3f);
+    model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
+    model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    model.transform.scale    = glm::vec3(0.01f);
+
+    ModelFBX model1("assets/models/grenade/grenade.fbx");
+    model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
+    model1.setFallbackMetallic(0.1f);
+    model1.setFallbackSmoothness(0.3f);
+    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
+    model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
+    model1.transform.scale    = glm::vec3(0.31f);
+
+
+    // for (auto val : ourModel.meshes[0].indices) {
+    //     //std::cout << val << " ";
+    // }/
+    //================================================================dIRECTION LIGHT
     float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
     float lightSpeed = 1.0f;
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
-    //ModelFBX model("assets/models/EelDog/EelDog.fbx");
-    ModelFBX model("assets/models/Player/Player.fbx");
-    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model.setFallbackMetallic(0.1f);
-    model.setFallbackSmoothness(0.3f);
-    model.transform.position = glm::vec3(3.0f, 0.0f, 0.0f);
-    model.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
-    model.transform.scale    = glm::vec3(0.01f);
-
-    // for (auto val : ourModel.meshes[0].indices) {
-    //     //std::cout << val << " ";
-    // }
-
     //=======================main loop
 
     while (!glfwWindowShouldClose(window)) {
+
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -211,9 +170,9 @@ int main() {
 
         ImGui::Separator();
         ImGui::Text("Ovladani svetla");
-        ImGui::SliderFloat("Light X", &lightPos.x, -5.0f, 5.0f);
-        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 10.0f);
-        ImGui::SliderFloat("Light Z", &lightPos.z, -5.0f, 5.0f);
+        ImGui::SliderFloat("Light X", &lightPos.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 15.0f);
+        ImGui::SliderFloat("Light Z", &lightPos.z, -10.0f, 10.0f);
         ImGui::Separator();
         ImGui::Text("Nastaveni svetla");
         ImGui::ColorEdit3("Barva svetla", glm::value_ptr(lightColor));
@@ -233,11 +192,10 @@ int main() {
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 17.5f;
-        float orthoSize = 20.0f; // Výchozí velikost
+        float orthoSize = 20.0f;
         float lightX = lightPos.x;
         float lightZ = lightPos.z;
-        glm::vec3 cubePos = cube.transform.position;
-
+        //glm::vec3 cubePos = cube.transform.position;
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
         // Dynamická velikost ortografické projekce
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
@@ -247,11 +205,11 @@ int main() {
 
         floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
 
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
-
+        model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
         // --- 1.pass depth map for shadow
 
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
@@ -261,6 +219,8 @@ int main() {
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(depthShader.ID, lightSpaceMatrix);
+        model1.DrawForShadow(depthShader.ID, lightSpaceMatrix);
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // --- 2. pass geometry ---
@@ -276,6 +236,7 @@ int main() {
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
+        model1.draw(view,projection, camera.Position);
 
         //============================================================================draw imgui
         ImGui::Render();
@@ -354,3 +315,4 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
+
