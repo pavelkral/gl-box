@@ -1,5 +1,8 @@
 # OpenGL tiny framework
 
+> [!WARNING]
+> This application is still in development.
+It is not feature complete and it is not tested on all platforms. 
 
 # Building
 
