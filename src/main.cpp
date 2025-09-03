@@ -100,16 +100,16 @@ int main() {
     //=======================================================scene setup
 
     unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("anime.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
     unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
-    std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
+    //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
     Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
     Material cubeMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", brickTextures,depthMap);
-    Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
+    //Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
 
     StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
                         std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),&cubeMaterial);

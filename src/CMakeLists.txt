@@ -59,12 +59,12 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Model.h
     glbox/Camera.h
 
-    samples/old/cubes.h
-    samples/old/lights.h
-    samples/sample.h
-    samples/old/shadows.h
-    samples/old/shadows_camera.h
-    samples/deferred.h
+    #samples/old/cubes.h
+    #samples/old/lights.h
+    #samples/sample.h
+    #samples/old/shadows.h
+    #samples/old/shadows_camera.h
+    #samples/deferred.h
 
     glbox/Shader.h
     glbox/geometry/CubeMesh.h
