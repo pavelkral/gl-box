@@ -4,7 +4,6 @@ project(gl-box)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Sources
 set(SOURCES
     main.cpp
     lib/glad/src/glad.cpp
@@ -18,7 +17,6 @@ set(SOURCES
 
 )
 
-# Headers
 set(HEADERS
     lib/ThreadPool.h
     lib/glad/include/KHR/khrplatform.h
@@ -28,7 +26,6 @@ set(HEADERS
 
 )
 
-# Shader and resource files
 set(DISTFILES
     ../.gitignore
     ../LICENSE
@@ -41,7 +38,6 @@ set(DISTFILES
     shaders/model.vert
 )
 
-# Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/glad/include
@@ -50,7 +46,6 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui/backends
 )
 
-# Add executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Transform.h
     glbox/Material.h
@@ -59,12 +54,12 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Model.h
     glbox/Camera.h
 
-    #samples/old/cubes.h
-    #samples/old/lights.h
-    #samples/sample.h
-    #samples/old/shadows.h
-    #samples/old/shadows_camera.h
-    #samples/deferred.h
+    samples/old/cubes.h
+    samples/old/lights.h
+    samples/sample.h
+    samples/old/shadows.h
+    samples/old/shadows_camera.h
+    samples/deferred.h
 
     glbox/Shader.h
     glbox/geometry/CubeMesh.h
@@ -74,7 +69,6 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
 
 )
 
-# Platform-specific settings
 if(WIN32)
     foreach(dll ${DLL_FILES})
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -97,8 +91,6 @@ if(WIN32)
         ${CMAKE_CURRENT_SOURCE_DIR}/../libs/irrklang/ikpMP3.dll
         ${CMAKE_CURRENT_SOURCE_DIR}/../libs/irrklang/irrKlang.dll
     )
-
-
 
 else() # Unix/Linux/Mac
     find_package(OpenGL REQUIRED)
