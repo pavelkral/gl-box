@@ -19,7 +19,6 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
        projCoords = projCoords * 0.5 + 0.5;
 
-       // Tady je oprava - musite deklarovat promennou uvnitr funkce
        float currentDepth = projCoords.z;
 
        if(currentDepth > 1.0)
