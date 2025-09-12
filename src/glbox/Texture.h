@@ -12,7 +12,7 @@ namespace Loader {
 class Trexture
 {
 public:
-  //  unsigned int loadTexture(const char *path);
+
     static GLuint makeCheckerTex(int size=256, int checks=8){
         std::vector<unsigned char> data(size*size*3);
         for(int y=0;y<size;y++){
@@ -36,6 +36,7 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         return tex;
     }
+
     static unsigned int loadTexture(char const *path) {
         unsigned int textureID;
         glGenTextures(1, &textureID);

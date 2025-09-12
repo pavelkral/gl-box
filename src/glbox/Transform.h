@@ -1,8 +1,5 @@
 #ifndef TRANSFORM_H
 #define TRANSFORM_H
-// Transform.h
-
-
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

@@ -1,5 +1,6 @@
 #ifndef CAMERA_H
 #define CAMERA_H
+
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -11,7 +12,6 @@ enum Camera_Movement {
     RIGHT
 };
 
-// Výchozí hodnoty
 const float YAW         = -90.0f;
 const float PITCH       =  0.0f;
 const float SPEED       =  2.5f;
@@ -21,21 +21,20 @@ const float ZOOM        =  45.0f;
 class Camera {
 
 public:
-    // Atributy kamery
+
     glm::vec3 Position;
     glm::vec3 Front;
     glm::vec3 Up;
     glm::vec3 Right;
     glm::vec3 WorldUp;
-    // Eulerovy úhly
+    // Euler angles
     float Yaw;
     float Pitch;
-    // Parametry kamery
+
     float MovementSpeed;
     float MouseSensitivity;
     float Zoom;
 
-    // Konstruktory
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM) {
         Position = position;
         WorldUp = up;
@@ -44,12 +43,11 @@ public:
         updateCameraVectors();
     }
 
-    // Metoda pro získání View Matrix
     glm::mat4 GetViewMatrix() {
         return glm::lookAt(Position, Position + Front, Up);
     }
 
-    // Metoda pro zpracování pohybu kláves
+    // keybord
     void ProcessKeyboard(Camera_Movement direction, float deltaTime) {
         float velocity = MovementSpeed * deltaTime;
         if (direction == FORWARD)
@@ -62,7 +60,6 @@ public:
             Position += Right * velocity;
     }
 
-    // Metoda pro zpracování pohybu myši
     void ProcessMouseMovement(float xoffset, float yoffset, GLboolean constrainPitch = true) {
         xoffset *= MouseSensitivity;
         yoffset *= MouseSensitivity;
@@ -80,7 +77,7 @@ public:
         updateCameraVectors();
     }
 
-    // Metoda pro zpracování zoomu
+    // zoom
     void ProcessMouseScroll(float yoffset) {
         Zoom -= (float)yoffset;
         if (Zoom < 1.0f)
@@ -90,7 +87,7 @@ public:
     }
 
 private:
-    // Metoda pro aktualizaci vektorů na základě Eulerových úhlů
+
     void updateCameraVectors() {
         glm::vec3 front;
         front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));

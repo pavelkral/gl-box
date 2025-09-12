@@ -68,7 +68,6 @@ void main()
         lighting = (diffuse + specular) * texture(diffuseTexture, TexCoords).rgb;
     }
 
-    // Celkový výsledek je součet ambientní a osvětlené (nebo stíněné) složky
     vec3 result = ambient + lighting;
 
     FragColor = vec4(result, 1.0);

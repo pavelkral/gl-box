@@ -21,7 +21,7 @@ public:
     unsigned int shaderProgramID;
     std::vector<Texture> textures;
     unsigned int shadowMapID;
-    // Constructor that loads shaders and accepts textures
+
     Material(const char* vertexPath, const char* fragmentPath, const std::vector<Texture>& textures, unsigned int sshadowMap) {
         // Shader loading and compilation code
         std::string vertexCode;
@@ -73,7 +73,6 @@ public:
 
     }
 
-    // Method to set uniforms and bind textures for drawing
     void use(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix) const {
 
         if (this->shaderProgramID == 0) {
@@ -91,7 +90,7 @@ public:
         } else {
             glUniform1i(loc, textures.size());
         }
-        // Dynamic texture binding
+        // texture binding
         unsigned int diffuseNr = 1;
         unsigned int normalNr = 1;
 
@@ -112,7 +111,6 @@ public:
         glUniform1i(glGetUniformLocation(this->shaderProgramID, "shadowMap"), textures.size());
     }
 
-    // Light properties and other setters are now part of the Material class
     void setLightProperties(const glm::vec3& light_pos, const glm::vec3& light_color, float ambient_strength, const glm::vec3& view_pos) const {
         glUseProgram(this->shaderProgramID);
         setVec3("lightPos", light_pos);

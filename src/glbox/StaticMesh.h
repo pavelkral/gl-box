@@ -23,15 +23,15 @@ public:
         : material(mat) {
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
-        glGenBuffers(1, &EBO); // Vygenerujeme EBO
+        glGenBuffers(1, &EBO); // EBO
 
         glBindVertexArray(VAO);
 
-        // VBO pre dáta
+        // VBO
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0], GL_STATIC_DRAW);
 
-        // EBO pre indexy
+        // EBO
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
 
@@ -51,16 +51,15 @@ public:
     ~StaticMesh() {
         glDeleteVertexArrays(1, &VAO);
         glDeleteBuffers(1, &VBO);
-        glDeleteBuffers(1, &EBO); // A nezabudnúť na EBO!
+        glDeleteBuffers(1, &EBO); //  EBO!
     }
 
-    // Metóda Draw pre indexované vykreslenie
+
     void Draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix) const {
         material->use(model, view, projection, lightSpaceMatrix);
 
-
         glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_INT, 0); // Používame glDrawElements
+        glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 

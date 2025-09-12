@@ -32,9 +32,6 @@
 #include <filesystem>
 #include <iostream>
 
-
-
-// Pomocná utilita – kompilace shaderu a link programu
 static GLuint compileShader(GLenum type, const char* src){
     GLuint s = glCreateShader(type);
     glShaderSource(s, 1, &src, nullptr);
