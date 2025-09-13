@@ -36,6 +36,8 @@ set(DISTFILES
     shaders/depth.vert
     shaders/model.frag
     shaders/model.vert
+    shaders/model_depth.frag
+    shaders/model_depth.vert
 )
 
 include_directories(

@@ -97,6 +97,8 @@ int main() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
+
+    Shader modelDepthShader("shaders/model_depth.vert", "shaders/model_depth.frag");
     //=======================================================scene setup
 
     unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
@@ -139,7 +141,10 @@ int main() {
     model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
     model1.transform.scale    = glm::vec3(0.31f);
 
-
+    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i) << "/n";
+    //model.playAnimationByIndex(0);
+    //model.playAnimationByName(\"Run");
+    //model.stopAnimation();
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
     // }/
@@ -218,8 +223,8 @@ int main() {
         //============================================================================draw shadows
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        model.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        model1.DrawForShadow(depthShader.ID, lightSpaceMatrix);
+        model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
+        model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -232,7 +237,8 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
 
         //============================================================================draw geometry
-
+        float t = (float)glfwGetTime();
+        model.updateAnimation(t);
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);

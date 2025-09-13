@@ -26,12 +26,20 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 
+static const int MAX_BONES = 100;
+
+// ---------- shader helpers ----------
 static GLuint compileShader(GLenum type, const char* src){
     GLuint s = glCreateShader(type);
     glShaderSource(s, 1, &src, nullptr);
@@ -60,7 +68,7 @@ static GLuint linkProgram(GLuint vs, GLuint fs){
     return p;
 }
 
-// shader (Blinn-Phong + normal map + metalness/smoothness)
+// ---------- shaders (main skinning VS + lighting FS) ----------
 static const char* kDefaultVS = R"GLSL(
 #version 330 core
 layout(location=0) in vec3 aPos;
@@ -68,24 +76,39 @@ layout(location=1) in vec3 aNormal;
 layout(location=2) in vec2 aUV;
 layout(location=3) in vec3 aTangent;
 layout(location=4) in vec3 aBitangent;
+layout(location=5) in ivec4 aBoneIDs;
+layout(location=6) in vec4 aWeights;
 
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProj;
+uniform mat4 uBones[100];
 
 out vec3 vWorldPos;
 out vec2 vUV;
 out mat3 vTBN;
 
 void main(){
-    vec4 worldPos = uModel * vec4(aPos,1.0);
+    // skinning: compute skin matrix (blend of bone transforms)
+    mat4 skinMat = mat4(0.0);
+    skinMat += aWeights.x * uBones[aBoneIDs.x];
+    skinMat += aWeights.y * uBones[aBoneIDs.y];
+    skinMat += aWeights.z * uBones[aBoneIDs.z];
+    skinMat += aWeights.w * uBones[aBoneIDs.w];
+
+    vec4 skinnedPos = skinMat * vec4(aPos, 1.0);
+    vec3 skinnedNormal = mat3(skinMat) * aNormal;
+    vec3 skinnedTangent = mat3(skinMat) * aTangent;
+    vec3 skinnedBitangent = mat3(skinMat) * aBitangent;
+
+    vec4 worldPos = uModel * skinnedPos;
     vWorldPos = worldPos.xyz;
     vUV = aUV;
 
-    vec3 T = mat3(uModel) * aTangent;
-    vec3 B = mat3(uModel) * aBitangent;
-    vec3 N = mat3(uModel) * aNormal;
-    vTBN = mat3(normalize(T), normalize(B), normalize(N));
+    vec3 T = normalize(mat3(uModel) * skinnedTangent);
+    vec3 B = normalize(mat3(uModel) * skinnedBitangent);
+    vec3 N = normalize(mat3(uModel) * skinnedNormal);
+    vTBN = mat3(T, B, N);
 
     gl_Position = uProj * uView * worldPos;
 }
@@ -117,7 +140,6 @@ uniform vec3 uAlbedoColor;
 uniform float uMetallicFactor;
 uniform float uSmoothnessFactor;
 
-// --- Nové uniformy pro světlo ---
 uniform vec3 uLightPos;
 uniform vec3 uLightColor;
 uniform float uAmbientStrength;
@@ -139,7 +161,6 @@ void main(){
 
     vec3 N = getNormal();
 
-    // Směr ke světlu
     vec3 L = normalize(uLightPos - vWorldPos);
     vec3 V = normalize(uCameraPos - vWorldPos);
     vec3 H = normalize(L+V);
@@ -150,24 +171,69 @@ void main(){
     float shininess = mix(8.0, 128.0, smoothness);
     float spec = pow(NdotH, shininess);
 
-    // Osvětlení
     vec3 diffuse = albedo * NdotL;
     vec3 specular = mix(vec3(0.04), albedo, metallic) * spec * NdotL;
-
-    // Ambient složka (nastavitelná)
     vec3 ambient = albedo * uAmbientStrength;
 
     vec3 color = ambient + (diffuse + specular) * uLightColor;
-
-    // Gamma korekce
     color = pow(color, vec3(1.0/2.2));
     FragColor = vec4(color, 1.0);
 }
-
 )GLSL";
+
+// ---------- depth shader for shadow map (skinning) ----------
+static const char* kDepthVS = R"GLSL(
+#version 330 core
+layout(location=0) in vec3 aPos;
+layout(location=5) in ivec4 aBoneIDs;
+layout(location=6) in vec4 aWeights;
+
+uniform mat4 model;
+uniform mat4 lightSpaceMatrix;
+uniform mat4 uBones[100];
+
+void main() {
+    mat4 skinMat = mat4(0.0);
+    skinMat += aWeights.x * uBones[aBoneIDs.x];
+    skinMat += aWeights.y * uBones[aBoneIDs.y];
+    skinMat += aWeights.z * uBones[aBoneIDs.z];
+    skinMat += aWeights.w * uBones[aBoneIDs.w];
+
+    vec4 skinnedPos = skinMat * vec4(aPos,1.0);
+    gl_Position = lightSpaceMatrix * model * skinnedPos;
+}
+)GLSL";
+
+static const char* kDepthFS = R"GLSL(
+#version 330 core
+void main(){}
+)GLSL";
+
+// ---------- data structures ----------
+struct VertexBoneData {
+    int ids[4];
+    float weights[4];
+    VertexBoneData(){ for(int i=0;i<4;i++){ ids[i]=0; weights[i]=0.0f; } }
+    void addBoneData(int boneID, float weight) {
+        for(int i=0;i<4;i++){
+            if(weights[i] == 0.0f) { ids[i]=boneID; weights[i]=weight; return; }
+        }
+        // replace smallest if necessary
+        int minI = 0; float minW = weights[0];
+        for(int i=1;i<4;i++){ if(weights[i]<minW){ minW=weights[i]; minI=i; } }
+        if(weight>minW){ ids[minI]=boneID; weights[minI]=weight; }
+    }
+};
+
+struct BoneInfo {
+    glm::mat4 offset;
+    glm::mat4 finalTransform;
+    BoneInfo(){ offset = glm::mat4(1.0f); finalTransform = glm::mat4(1.0f); }
+};
 
 struct Mesh {
     GLuint vao=0, vbo=0, ebo=0;
+    GLuint boneVBO = 0;
     GLsizei indexCount=0;
     GLuint texAlbedo=0;
     GLuint texNormal=0;
@@ -175,37 +241,47 @@ struct Mesh {
     GLuint texSmoothness=0;
 };
 
-
+// ---------- ModelFBX class ----------
 class ModelFBX {
 
 private:
-
     std::vector<Mesh> meshes_;
     std::string directory_;
     GLuint program_ = 0;
+    GLuint depthProgram_ = 0;
     float fallbackAlbedo_[3] = {0.8f, 0.8f, 0.85f};
     float fallbackMetallic_ = 0.0f;
     float fallbackSmoothness_ = 0.2f;
     std::vector<GLuint> ownedTextures_;
     std::unordered_map<std::string, GLuint> cacheTextures_;
 
-public:
+    // animation
+    Assimp::Importer importer_;
+    const aiScene* scene_ = nullptr;
+    std::unordered_map<std::string,int> boneMapping_; // name -> index
+    std::vector<BoneInfo> bones_;
+    int currentAnimIndex_ = 0;
+    bool animPlaying_ = true;
 
+public:
     ModelFBX(const std::string& path, const std::string& vsSrc = kDefaultVS,const std::string& fsSrc = kDefaultFS,bool flipUVs = false)
     {
         directory_ = std::filesystem::path(path).parent_path().string();
         loadModel(path, flipUVs);
         createProgram(vsSrc.c_str(), fsSrc.c_str());
+        createDepthProgram(kDepthVS, kDepthFS);
     }
 
     ~ModelFBX(){
         for(auto& m : meshes_){
-            glDeleteVertexArrays(1, &m.vao);
-            glDeleteBuffers(1, &m.vbo);
-            glDeleteBuffers(1, &m.ebo);
+            if(m.vao) glDeleteVertexArrays(1, &m.vao);
+            if(m.vbo) glDeleteBuffers(1, &m.vbo);
+            if(m.ebo) glDeleteBuffers(1, &m.ebo);
+            if(m.boneVBO) glDeleteBuffers(1, &m.boneVBO);
         }
         for(auto id : ownedTextures_){ glDeleteTextures(1, &id); }
         if(program_) glDeleteProgram(program_);
+        if(depthProgram_) glDeleteProgram(depthProgram_);
     }
 
     Transform transform;
@@ -213,17 +289,7 @@ public:
     void setFallbackMetallic(float v){ fallbackMetallic_ = v; }
     void setFallbackSmoothness(float v){ fallbackSmoothness_ = v; }
 
-    void DrawForShadow(unsigned int depthShaderID, const glm::mat4& lightSpaceMatrix) const {
-        glUseProgram(depthShaderID);
-        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(transform.GetModelMatrix()));
-        for(const auto& m : meshes_){
-            glBindVertexArray(m.vao);
-            glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        }
-
-    }
+    // lighting
     void setLightProperties(const glm::vec3& lightPos,
                             const glm::vec3& lightColor,
                             float ambientStrength,
@@ -234,10 +300,77 @@ public:
         glUniform3fv(glGetUniformLocation(program_, "uLightColor"), 1, glm::value_ptr(lightColor));
         glUniform1f(glGetUniformLocation(program_, "uAmbientStrength"), ambientStrength);
         glUniform3fv(glGetUniformLocation(program_, "uCameraPos"), 1, glm::value_ptr(cameraPos));
+        glUseProgram(0);
     }
 
-    void draw(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& cameraPos){
+    // --- animation control ---
+    void playAnimationByIndex(int idx) {
+        if(scene_ && idx>=0 && idx<(int)scene_->mNumAnimations){
+            currentAnimIndex_ = idx;
+            animPlaying_ = true;
+        } else {
+            std::cerr << "playAnimationByIndex: invalid index\n";
+        }
+    }
+    void playAnimationByName(const std::string& name) {
+        if(!scene_) return;
+        for(unsigned i=0;i<scene_->mNumAnimations;i++){
+            if(name == scene_->mAnimations[i]->mName.C_Str()){
+                currentAnimIndex_ = i;
+                animPlaying_ = true;
+                return;
+            }
+        }
+        std::cerr << "Animace '"<<name<<"' nenalezena\n";
+    }
+    void stopAnimation(){ animPlaying_ = false; }
+    int numAnimations() const { return scene_? scene_->mNumAnimations : 0; }
+    std::string animationName(int idx) const {
+        if(!scene_||idx<0||idx>=(int)scene_->mNumAnimations) return "";
+        return scene_->mAnimations[idx]->mName.C_Str();
+    }
 
+    // call each frame with current time in seconds to update skeleton
+    void updateAnimation(float timeSec){
+      //  if(!scene_ || scene_->mNumAnimations==0 || !animPlaying_) return;
+        if(!scene_ || !animPlaying_ || scene_->mNumAnimations == 0){
+            // fallback: statický model, žádné animace
+            for(auto &b : bones_){
+                b.finalTransform = b.offset; // nebo glm::mat4(1.0f)
+            }
+
+            // pokud žádné kosti vůbec nejsou, vytvoř minimálně jednu
+            if(bones_.empty()){
+                BoneInfo bi;
+                bi.finalTransform = glm::mat4(1.0f);
+                bones_.push_back(bi);
+            }
+            return;
+        }
+
+        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
+        float ticks = timeSec * tps;
+        float animTime = fmod(ticks, (float)anim->mDuration);
+        readNodeHierarchy(animTime, scene_->mRootNode, glm::mat4(1.0f));
+    }
+    void prepareBonesFallback() {
+        if(bones_.empty()) {
+            // Přidáme jednu "kost" s identitou
+            BoneInfo bi;
+            bi.finalTransform = glm::mat4(1.0f);
+            bones_.push_back(bi);
+        }
+    }
+
+    VertexBoneData createDefaultBoneData() {
+        VertexBoneData vbd;
+        vbd.ids[0] = 0;
+        vbd.weights[0] = 1.0f;
+        return vbd;
+    }
+    // draw (main shader)
+    void draw(const glm::mat4& view,const glm::mat4& proj,const glm::vec3& cameraPos){
         glUseProgram(program_);
         glm::mat4 model = transform.GetModelMatrix();
         glUniformMatrix4fv(glGetUniformLocation(program_, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
@@ -253,6 +386,13 @@ public:
         glUniform3fv(glGetUniformLocation(program_, "uAlbedoColor"), 1, fallbackAlbedo_);
         glUniform1f(glGetUniformLocation(program_, "uMetallicFactor"), fallbackMetallic_);
         glUniform1f(glGetUniformLocation(program_, "uSmoothnessFactor"), fallbackSmoothness_);
+        prepareBonesFallback();
+        // upload bones
+        size_t nBonesToSend = std::min<size_t>(bones_.size(), MAX_BONES);
+        for(size_t i=0;i<nBonesToSend;i++){
+            std::string name = "uBones[" + std::to_string(i) + "]";
+            glUniformMatrix4fv(glGetUniformLocation(program_, name.c_str()), 1, GL_FALSE, glm::value_ptr(bones_[i].finalTransform));
+        }
 
         for(const auto& m : meshes_){
             bindTextureWithFallback(m.texAlbedo, 0, "uHasAlbedo");
@@ -267,18 +407,51 @@ public:
         glUseProgram(0);
     }
 
+    // draw for shadow map (uses depthProgram_, supports skinning)
+    void DrawForShadow(unsigned int depthShaderID, const glm::mat4& lightSpaceMatrix)  {
+        // either user-supplied depthShaderID or internal depthProgram_ could be used.
+        GLuint programToUse = depthShaderID ? depthShaderID : depthProgram_;
+        glUseProgram(programToUse);
+
+        // keep compatibility with original uniform names: "lightSpaceMatrix" and "model"
+        glUniformMatrix4fv(glGetUniformLocation(programToUse, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
+        glm::mat4 model = transform.GetModelMatrix();
+        glUniformMatrix4fv(glGetUniformLocation(programToUse, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        prepareBonesFallback();
+        // upload bones same as main draw
+        size_t nBonesToSend = std::min<size_t>(bones_.size(), MAX_BONES);
+        for(size_t i=0;i<nBonesToSend;i++){
+            std::string name = "uBones[" + std::to_string(i) + "]";
+            glUniformMatrix4fv(glGetUniformLocation(programToUse, name.c_str()), 1, GL_FALSE, glm::value_ptr(bones_[i].finalTransform));
+        }
+
+        for(const auto& m : meshes_){
+            glBindVertexArray(m.vao);
+            glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        }
+        glUseProgram(0);
+    }
+
     GLuint program() const { return program_; }
+    GLuint depthProgram() const { return depthProgram_; }
+    size_t numBones() const { return bones_.size(); }
+    glm::mat4 boneMatrix(size_t i) const { return (i < bones_.size()) ? bones_[i].finalTransform : glm::mat4(1.0f); }
 
 private:
-
-
+    // ---------- helpers ----------
     void createProgram(const char* vs, const char* fs){
         GLuint v = compileShader(GL_VERTEX_SHADER, vs);
         GLuint f = compileShader(GL_FRAGMENT_SHADER, fs);
         program_ = linkProgram(v, f);
     }
+    void createDepthProgram(const char* vs, const char* fs){
+        GLuint v = compileShader(GL_VERTEX_SHADER, vs);
+        GLuint f = compileShader(GL_FRAGMENT_SHADER, fs);
+        depthProgram_ = linkProgram(v, f);
+    }
 
-    void bindTextureWithFallback(GLuint tex, int unit, const char* hasName){
+    void bindTextureWithFallback(GLuint tex, int unit, const char* hasName) const {
         glUniform1i(glGetUniformLocation(program_, hasName), tex!=0);
         if(tex){
             glActiveTexture(GL_TEXTURE0 + unit);
@@ -287,15 +460,19 @@ private:
     }
 
     void loadModel(const std::string& path, bool flipUVs){
-        Assimp::Importer importer;
         unsigned int flags = aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices;
         if(flipUVs) flags |= aiProcess_FlipUVs;
-        const aiScene* scene = importer.ReadFile(path, flags);
-        if(!scene || !scene->mRootNode){
-            std::cerr << "Assimp: nepodarilo se nacist soubor: " << importer.GetErrorString() << std::endl;
+        scene_ = importer_.ReadFile(path, flags);
+        if(!scene_ || !scene_->mRootNode){
+            std::cerr << "Assimp: nepodarilo se nacist soubor: " << importer_.GetErrorString() << std::endl;
             return;
         }
-        processNode(scene->mRootNode, scene);
+        // animation meta
+        if(scene_->mNumAnimations > 0){
+            const aiAnimation* anim = scene_->mAnimations[0];
+            // not strictly needed to store here, keep for info
+        }
+        processNode(scene_->mRootNode, scene_);
     }
 
     void processNode(aiNode* node, const aiScene* scene){
@@ -307,9 +484,9 @@ private:
     }
 
     Mesh processMesh(aiMesh* mesh, const aiScene* scene){
-
         std::vector<float> vertices; vertices.reserve(mesh->mNumVertices * 14);
         std::vector<unsigned int> indices; indices.reserve(mesh->mNumFaces * 3);
+        std::vector<VertexBoneData> boneData(mesh->mNumVertices);
 
         for(unsigned i=0;i<mesh->mNumVertices;++i){
             aiVector3D p = mesh->mVertices[i];
@@ -325,6 +502,32 @@ private:
             for(unsigned j=0;j<face.mNumIndices;++j) indices.push_back(face.mIndices[j]);
         }
 
+        // load bones for this mesh
+        if(mesh->HasBones()){
+            for(unsigned int i=0;i<mesh->mNumBones;i++){
+                std::string boneName(mesh->mBones[i]->mName.C_Str());
+                int boneIndex = 0;
+                if(boneMapping_.find(boneName) == boneMapping_.end()){
+                    boneIndex = (int)bones_.size();
+                    boneMapping_[boneName] = boneIndex;
+                    BoneInfo bi;
+                    bi.offset = aiMatToGlm(mesh->mBones[i]->mOffsetMatrix);
+                    bones_.push_back(bi);
+                } else {
+                    boneIndex = boneMapping_[boneName];
+                }
+                for(unsigned int j=0; j<mesh->mBones[i]->mNumWeights; ++j){
+                    unsigned int v = mesh->mBones[i]->mWeights[j].mVertexId;
+                    float w = mesh->mBones[i]->mWeights[j].mWeight;
+                    if(v < boneData.size())
+                        boneData[v].addBoneData(boneIndex, w);
+                }
+            }
+        } else {
+            for(size_t i=0;i<mesh->mNumVertices;i++){
+                boneData[i] = createDefaultBoneData();
+            }
+        }
         Mesh out;
         glGenVertexArrays(1, &out.vao);
         glGenBuffers(1, &out.vbo);
@@ -342,6 +545,16 @@ private:
         glEnableVertexAttribArray(2); glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,stride,(void*)(6*sizeof(float)));
         glEnableVertexAttribArray(3); glVertexAttribPointer(3,3,GL_FLOAT,GL_FALSE,stride,(void*)(8*sizeof(float)));
         glEnableVertexAttribArray(4); glVertexAttribPointer(4,3,GL_FLOAT,GL_FALSE,stride,(void*)(11*sizeof(float)));
+
+        glGenBuffers(1, &out.boneVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, out.boneVBO);
+        glBufferData(GL_ARRAY_BUFFER, boneData.size()*sizeof(VertexBoneData), boneData.data(), GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(5);
+        glVertexAttribIPointer(5, 4, GL_INT, sizeof(VertexBoneData), (void*)0);
+
+        glEnableVertexAttribArray(6);
+        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(VertexBoneData), (void*)(offsetof(VertexBoneData, weights)));
 
         glBindVertexArray(0);
         out.indexCount = static_cast<GLsizei>(indices.size());
@@ -364,11 +577,12 @@ private:
                 }
             }
 
-            out.texAlbedo = loadFirstTexture(mat, {aiTextureType_DIFFUSE});
+            out.texAlbedo = loadFirstTexture(mat, {aiTextureType_DIFFUSE, aiTextureType_BASE_COLOR});
             out.texNormal = loadFirstTexture(mat, {aiTextureType_NORMALS, aiTextureType_HEIGHT});
-            out.texMetallic = loadFirstTexture(mat, {aiTextureType_SPECULAR});
-            out.texSmoothness = loadFirstTexture(mat, {aiTextureType_SHININESS});
+            out.texMetallic = loadFirstTexture(mat, {aiTextureType_SPECULAR, aiTextureType_METALNESS});
+            out.texSmoothness = loadFirstTexture(mat, {aiTextureType_SHININESS, aiTextureType_DIFFUSE_ROUGHNESS});
         }
+
         if(mesh->HasTextureCoords(0)) {
             for(int i = 0; i < std::min<unsigned>(3, mesh->mNumVertices); i++) {
                 auto uv = mesh->mTextureCoords[0][i];
@@ -421,8 +635,6 @@ private:
         return fname.string(); // fallback
     }
 
-
-
     GLuint loadTexture2D(const std::string& file){
         auto it = cacheTextures_.find(file);
         if(it != cacheTextures_.end()) return it->second;
@@ -449,6 +661,111 @@ private:
         cacheTextures_[file] = tex;
         return tex;
     }
+
+    // ---------- math helpers for animation ----------
+    static glm::mat4 aiMatToGlm(const aiMatrix4x4& m) {
+        glm::mat4 out;
+        out[0][0] = m.a1; out[1][0] = m.a2; out[2][0] = m.a3; out[3][0] = m.a4;
+        out[0][1] = m.b1; out[1][1] = m.b2; out[2][1] = m.b3; out[3][1] = m.b4;
+        out[0][2] = m.c1; out[1][2] = m.c2; out[2][2] = m.c3; out[3][2] = m.c4;
+        out[0][3] = m.d1; out[1][3] = m.d2; out[2][3] = m.d3; out[3][3] = m.d4;
+        return out;
+    }
+
+    static glm::quat aiQuatToGlm(const aiQuaternion& q) {
+        return glm::quat(q.w, q.x, q.y, q.z);
+    }
+
+    static glm::vec3 aiVecToGlm(const aiVector3D& v) {
+        return glm::vec3(v.x,v.y,v.z);
+    }
+
+    const aiNodeAnim* findNodeAnim(const aiAnimation* anim, const std::string& name) {
+        for (unsigned int i=0;i<anim->mNumChannels;i++) {
+            if (std::string(anim->mChannels[i]->mNodeName.C_Str()) == name) {
+                return anim->mChannels[i];
+            }
+        }
+        return nullptr;
+    }
+
+    glm::vec3 interpolatePosition(float time, const aiNodeAnim* channel) {
+        if(channel->mNumPositionKeys == 1)
+            return aiVecToGlm(channel->mPositionKeys[0].mValue);
+        for(unsigned int i=0;i<channel->mNumPositionKeys-1;i++) {
+            if(time < (float)channel->mPositionKeys[i+1].mTime) {
+                float t1 = (float)channel->mPositionKeys[i].mTime;
+                float t2 = (float)channel->mPositionKeys[i+1].mTime;
+                float factor = (time - t1) / (t2 - t1);
+                auto start = aiVecToGlm(channel->mPositionKeys[i].mValue);
+                auto end   = aiVecToGlm(channel->mPositionKeys[i+1].mValue);
+                return glm::mix(start, end, factor);
+            }
+        }
+        return aiVecToGlm(channel->mPositionKeys[channel->mNumPositionKeys-1].mValue);
+    }
+
+    glm::quat interpolateRotation(float time, const aiNodeAnim* channel) {
+        if(channel->mNumRotationKeys == 1)
+            return aiQuatToGlm(channel->mRotationKeys[0].mValue);
+        for(unsigned int i=0;i<channel->mNumRotationKeys-1;i++) {
+            if(time < (float)channel->mRotationKeys[i+1].mTime) {
+                float t1 = (float)channel->mRotationKeys[i].mTime;
+                float t2 = (float)channel->mRotationKeys[i+1].mTime;
+                float factor = (time - t1) / (t2 - t1);
+                auto start = aiQuatToGlm(channel->mRotationKeys[i].mValue);
+                auto end   = aiQuatToGlm(channel->mRotationKeys[i+1].mValue);
+                return glm::slerp(start, end, factor);
+            }
+        }
+        return aiQuatToGlm(channel->mRotationKeys[channel->mNumRotationKeys-1].mValue);
+    }
+
+    glm::vec3 interpolateScaling(float time, const aiNodeAnim* channel) {
+        if(channel->mNumScalingKeys == 1)
+            return aiVecToGlm(channel->mScalingKeys[0].mValue);
+        for(unsigned int i=0;i<channel->mNumScalingKeys-1;i++) {
+            if(time < (float)channel->mNumScalingKeys && time < (float)channel->mScalingKeys[i+1].mTime) {
+                float t1 = (float)channel->mScalingKeys[i].mTime;
+                float t2 = (float)channel->mScalingKeys[i+1].mTime;
+                float factor = (time - t1) / (t2 - t1);
+                auto start = aiVecToGlm(channel->mScalingKeys[i].mValue);
+                auto end   = aiVecToGlm(channel->mScalingKeys[i+1].mValue);
+                return glm::mix(start, end, factor);
+            }
+        }
+        return aiVecToGlm(channel->mScalingKeys[channel->mNumScalingKeys-1].mValue);
+    }
+
+    void readNodeHierarchy(float animTime, const aiNode* node, const glm::mat4& parentTransform) {
+        std::string name(node->mName.C_Str());
+        if(!scene_ || scene_->mNumAnimations == 0) return;
+        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+
+        glm::mat4 nodeTransform = aiMatToGlm(node->mTransformation);
+
+        const aiNodeAnim* channel = findNodeAnim(anim, name);
+        if(channel) {
+            glm::vec3 T = interpolatePosition(animTime, channel);
+            glm::quat R = interpolateRotation(animTime, channel);
+            glm::vec3 S = interpolateScaling(animTime, channel);
+
+            glm::mat4 trans = glm::translate(glm::mat4(1.0f), T);
+            glm::mat4 rot = glm::toMat4(R);
+            glm::mat4 scale = glm::scale(glm::mat4(1.0f), S);
+            nodeTransform = trans * rot * scale;
+        }
+
+        glm::mat4 globalTransform = parentTransform * nodeTransform;
+
+        auto it = boneMapping_.find(name);
+        if(it != boneMapping_.end()){
+            int index = it->second;
+            bones_[index].finalTransform = globalTransform * bones_[index].offset;
+        }
+
+        for(unsigned int i=0;i<node->mNumChildren;i++){
+            readNodeHierarchy(animTime, node->mChildren[i], globalTransform);
+        }
+    }
 };
-
-
