@@ -305,11 +305,20 @@ public:
 
     // --- animation control ---
     void playAnimationByIndex(int idx) {
-        if(scene_ && idx>=0 && idx<(int)scene_->mNumAnimations){
-            currentAnimIndex_ = idx;
-            animPlaying_ = true;
-        } else {
-            std::cerr << "playAnimationByIndex: invalid index\n";
+        if (!scene_ || idx < 0 || idx >= (int)scene_->mNumAnimations) {
+            std::cerr << "playAnimationByIndex: invalid index " << idx << "\n";
+            return;
+        }
+
+        currentAnimIndex_ = idx;
+        animPlaying_ = true;
+
+        const aiAnimation* anim = scene_->mAnimations[idx];
+        std::cout << "Playing animation index " << idx << " with "
+                  << anim->mNumChannels << " channels:\n";
+        for (unsigned i = 0; i < anim->mNumChannels; i++) {
+            std::cout << "  Channel[" << i << "]: "
+                      << anim->mChannels[i]->mNodeName.C_Str() << "\n";
         }
     }
     void playAnimationByName(const std::string& name) {
@@ -563,9 +572,7 @@ private:
             aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
             aiString name;
             mat->Get(AI_MATKEY_NAME, name);   // bezpečný způsob
-            std::cout << "Mesh has material: "
-                      << (name.length > 0 ? name.C_Str() : "<unnamed>")
-                      << std::endl;
+            std::cout << "Mesh has material: " << (name.length > 0 ? name.C_Str() : "<unnamed>")<< std::endl;
 
             for (int type = aiTextureType_DIFFUSE; type <= aiTextureType_UNKNOWN; ++type) {
                 aiTextureType t = static_cast<aiTextureType>(type);
@@ -603,8 +610,7 @@ private:
                 std::string p = str.C_Str();
                 std::string resolved = resolvePath(p);
 
-                std::cout << "Texture found: " << p
-                          << " -> resolved path: " << resolved << std::endl;
+                std::cout << "Texture found: " << p << " -> resolved path: " << resolved << std::endl;
 
                 return loadTexture2D(resolved);
             }
@@ -738,34 +744,38 @@ private:
     }
 
     void readNodeHierarchy(float animTime, const aiNode* node, const glm::mat4& parentTransform) {
-        std::string name(node->mName.C_Str());
-        if(!scene_ || scene_->mNumAnimations == 0) return;
-        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
-
+        std::string nodeName(node->mName.C_Str());
         glm::mat4 nodeTransform = aiMatToGlm(node->mTransformation);
 
-        const aiNodeAnim* channel = findNodeAnim(anim, name);
-        if(channel) {
-            glm::vec3 T = interpolatePosition(animTime, channel);
-            glm::quat R = interpolateRotation(animTime, channel);
-            glm::vec3 S = interpolateScaling(animTime, channel);
+        if(scene_ && scene_->mNumAnimations > 0){
+            const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+            const aiNodeAnim* channel = findNodeAnim(anim, nodeName);
 
-            glm::mat4 trans = glm::translate(glm::mat4(1.0f), T);
-            glm::mat4 rot = glm::toMat4(R);
-            glm::mat4 scale = glm::scale(glm::mat4(1.0f), S);
-            nodeTransform = trans * rot * scale;
+            if(channel){
+                glm::vec3 T = interpolatePosition(animTime, channel);
+                glm::quat R = interpolateRotation(animTime, channel);
+                glm::vec3 S = interpolateScaling(animTime, channel);
+
+                glm::mat4 trans = glm::translate(glm::mat4(1.0f), T);
+                glm::mat4 rot = glm::toMat4(R);
+                glm::mat4 scale = glm::scale(glm::mat4(1.0f), S);
+
+                nodeTransform = trans * rot * scale;
+            }
         }
 
         glm::mat4 globalTransform = parentTransform * nodeTransform;
 
-        auto it = boneMapping_.find(name);
+        auto it = boneMapping_.find(nodeName);
         if(it != boneMapping_.end()){
             int index = it->second;
             bones_[index].finalTransform = globalTransform * bones_[index].offset;
         }
 
-        for(unsigned int i=0;i<node->mNumChildren;i++){
+        // vždy pokračovat v procházení dětí
+        for(unsigned int i = 0; i < node->mNumChildren; i++){
             readNodeHierarchy(animTime, node->mChildren[i], globalTransform);
         }
     }
+
 };

@@ -118,8 +118,6 @@ int main() {
     StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
                          std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),&floorMaterial);
 
-
-
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
@@ -141,7 +139,7 @@ int main() {
     model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
     model1.transform.scale    = glm::vec3(0.31f);
 
-    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i) << "/n";
+    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
     //model.playAnimationByIndex(0);
     //model.playAnimationByName(\"Run");
     //model.stopAnimation();
@@ -235,10 +233,11 @@ int main() {
 
         glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
-
-        //============================================================================draw geometry
         float t = (float)glfwGetTime();
         model.updateAnimation(t);
+        //============================================================================draw geometry
+
+
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
