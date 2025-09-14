@@ -191,7 +191,7 @@ int main() {
             lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
         }
 
-        // Vypocet matic svetla (lightSpaceMatrix)
+        //  (lightSpaceMatrix)
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 17.5f;
