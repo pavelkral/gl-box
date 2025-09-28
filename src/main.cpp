@@ -131,13 +131,13 @@ int main() {
     model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
 
-    ModelFBX model1("assets/models/grenade/grenade.fbx");
+    ModelFBX model1("assets/models/grenade/untitled.fbx");
     model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model1.setFallbackMetallic(0.1f);
     model1.setFallbackSmoothness(0.3f);
     model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
     model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
-    model1.transform.scale    = glm::vec3(0.31f);
+    model1.transform.scale    = glm::vec3(0.01f);
 
     for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
     //model.playAnimationByIndex(0);
@@ -165,22 +165,22 @@ int main() {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        ImGui::Begin("Nastaveni sceny");
+        ImGui::Begin("Scene settings");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        if (ImGui::Button("Zmenit smer rotace krychle")) {
+        if (ImGui::Button("Change cube rotation direction")) {
             rotationSpeed *= -1.0f;
         }
 
         ImGui::Separator();
-        ImGui::Text("Ovladani svetla");
+        ImGui::Text("Light control");
         ImGui::SliderFloat("Light X", &lightPos.x, -10.0f, 10.0f);
         ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 15.0f);
         ImGui::SliderFloat("Light Z", &lightPos.z, -10.0f, 10.0f);
         ImGui::Separator();
-        ImGui::Text("Nastaveni svetla");
-        ImGui::ColorEdit3("Barva svetla", glm::value_ptr(lightColor));
-        ImGui::SliderFloat("Ambientni sila", &ambientStrength, 0.0f, 1.0f);
-        ImGui::Checkbox("Auto pohyb svetla", &autoLightMovement);
+        ImGui::Text("Light settings");
+        ImGui::ColorEdit3("Light color", glm::value_ptr(lightColor));
+        ImGui::SliderFloat("Ambient strength", &ambientStrength, 0.0f, 1.0f);
+        ImGui::Checkbox("Auto light movement", &autoLightMovement);
         ImGui::End();
 
         //============================================================================input
@@ -235,6 +235,7 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
         model.updateAnimation(t);
+        //model1.updateAnimation(t);
         //============================================================================draw geometry
 
 
