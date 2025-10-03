@@ -9,359 +9,342 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <string>
-#include <vector>
-std::vector<std::string> faces1
-    {
-        "skybox2/right.bmp",
-        "skybox2/left.bmp",
-        "skybox2/top.bmp",
-        "skybox2/bottom.bmp",
-        "skybox2/front.bmp",
-        "skybox2/back.bmp"
-    };
-// --- Prototypy funkcí ---
-// ------------------- main.cpp -------------------
 
+#include "glbox/Camera.h"
+#include "glbox/Material.h"
+#include "glbox/Model.h"
+#include "glbox/SceneObject.h"
+#include "glbox/StaticMesh.h"
+#include "glbox/Transform.h"
+#include "glbox/Shader.h"
+#include "glbox/Texture.h"
+#include "glbox/geometry/CubeMesh.h"
+#include "glbox/geometry/PlaneMesh.h"
+#include "glbox/skydome.h"
 
-// --- Nastavení ---
+void framebuffer_size_callback(GLFWwindow *window, int width, int height);
+void mouse_callback(GLFWwindow *window, double xpos, double ypos);
+void processInput(GLFWwindow *window);
+unsigned int loadTexture(const char *path);
+
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
-
-// === Kamera ===
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f,  3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f,  0.0f);
-
-float yaw   = -90.0f;
-float pitch = 0.0f;
+bool cursorEnabled = false;
+bool keyLWasPressed = false;
+Camera camera(glm::vec3(0.0f, 2.0f, 5.0f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
-
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// === Prototypy ===
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow *window);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-unsigned int loadCubemap(std::vector<std::string> faces);
-unsigned int loadTexture(const char* path);
+int main() {
 
-// --- Shadery ---
-// Skybox vertex
-const char *skyboxVertexShaderSource = R"(
-#version 330 core
-layout (location = 0) in vec3 aPos;
-out vec3 TexCoords;
-uniform mat4 projection;
-uniform mat4 view;
-void main()
-{
-    TexCoords = aPos;
-    vec4 pos = projection * mat4(mat3(view)) * vec4(aPos, 1.0);
-    gl_Position = pos.xyww;
-}
-)";
-
-// Skybox fragment
-const char *skyboxFragmentShaderSource = R"(
-#version 330 core
-out vec4 FragColor;
-in vec3 TexCoords;
-uniform samplerCube skybox;
-void main()
-{
-    FragColor = texture(skybox, TexCoords);
-}
-)";
-
-// Sun billboard vertex
-const char *sunVertexShaderSource = R"(
-#version 330 core
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aTexCoord;
-out vec2 TexCoord;
-
-uniform mat4 view;
-uniform mat4 projection;
-uniform vec3 sunPos; // pevná pozice slunce ve světě
-uniform float scale;
-
-void main()
-{
-    // pevné světové osy
-    vec3 right = vec3(1.0, 0.0, 0.0);
-    vec3 up    = vec3(0.0, 1.0, 0.0);
-
-    vec3 worldPos = sunPos + (aPos.x * right + aPos.y * up) * scale;
-
-    gl_Position = projection * view * vec4(worldPos, 1.0);
-    TexCoord = aTexCoord;
-}
-
-
-)";
-
-// Sun billboard fragment
-const char *sunFragmentShaderSource = R"(
-#version 330 core
-out vec4 FragColor;
-in vec2 TexCoord;
-
-uniform sampler2D sunTexture;
-
-void main()
-{
-    vec2 center = TexCoord - vec2(0.5);
-    float dist = length(center);
-
-    vec4 texColor = texture(sunTexture, TexCoord);
-
-    float glow = exp(-dist * 15.0);
-    vec3 glowColor = vec3(1.0, 0.95, 0.6);
-
-    vec3 color = texColor.rgb + glowColor * glow;
-
-    if(texColor.a < 0.1) discard;
-
-    FragColor = vec4(color, 1.0);
-}
-
-)";
-
-// === MAIN ===
-int main()
-{
-    // GLFW init
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Skybox + FPS kamera + Slunce", NULL, NULL);
-    if (window == NULL) { std::cout << "Failed to create GLFW window\n"; glfwTerminate(); return -1; }
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
+    if (window == NULL) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    // GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { std::cout << "Failed to init GLAD\n"; return -1; }
-
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
     glEnable(GL_DEPTH_TEST);
+    //============================================================================imgui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330");
 
-    // === SHADERS ===
-    auto compileShader = [](const char* src, GLenum type){
-        unsigned int s = glCreateShader(type);
-        glShaderSource(s, 1, &src, NULL);
-        glCompileShader(s);
-        return s;
-    };
+    //============================================================================
+    // --- DEPTH BUFFER SHADOWS ---
 
-    // Skybox program
-    unsigned int skyVS = compileShader(skyboxVertexShaderSource, GL_VERTEX_SHADER);
-    unsigned int skyFS = compileShader(skyboxFragmentShaderSource, GL_FRAGMENT_SHADER);
-    unsigned int skyProg = glCreateProgram();
-    glAttachShader(skyProg, skyVS);
-    glAttachShader(skyProg, skyFS);
-    glLinkProgram(skyProg);
-    glDeleteShader(skyVS); glDeleteShader(skyFS);
+    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+    unsigned int depthMapFBO;
+    glGenFramebuffers(1, &depthMapFBO);
+    unsigned int depthMap;
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
+                 SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = {1.0, 1.0, 1.0, 1.0};
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
+                    GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
-    // Sun program
-    unsigned int sunVS = compileShader(sunVertexShaderSource, GL_VERTEX_SHADER);
-    unsigned int sunFS = compileShader(sunFragmentShaderSource, GL_FRAGMENT_SHADER);
-    unsigned int sunProg = glCreateProgram();
-    glAttachShader(sunProg, sunVS);
-    glAttachShader(sunProg, sunFS);
-    glLinkProgram(sunProg);
-    glDeleteShader(sunVS); glDeleteShader(sunFS);
+    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                           depthMap, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    // === Skybox data ===
-    float skyboxVertices[] = {
-        -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-        1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-        1.0f, -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
-        -1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,
-        -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f,  1.0f,
-        1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f,
-        -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
-        1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
-    };
+    Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
+    Shader modelDepthShader("shaders/model_depth.vert", "shaders/model_depth.frag");
 
-    unsigned int skyVAO, skyVBO;
-    glGenVertexArrays(1, &skyVAO);
-    glGenBuffers(1, &skyVBO);
-    glBindVertexArray(skyVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, skyVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
 
-    // === Sun quad ===
-    float quadVertices[] = {
-        -1.0f, -1.0f,  0.0f, 0.0f,
-        1.0f, -1.0f,  1.0f, 0.0f,
-        1.0f,  1.0f,  1.0f, 1.0f,
-        -1.0f, -1.0f,  0.0f, 0.0f,
-        1.0f,  1.0f,  1.0f, 1.0f,
-        -1.0f,  1.0f,  0.0f, 1.0f
-    };
-    unsigned int sunVAO, sunVBO;
-    glGenVertexArrays(1, &sunVAO);
-    glGenBuffers(1, &sunVBO);
-    glBindVertexArray(sunVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, sunVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)(2*sizeof(float)));
+    //=======================================================scene setup
 
-    // === Cubemap load ===
-    std::vector<std::string> faces{
-        "skybox/right.jpg",
-        "skybox/left.jpg",
-        "skybox/top.jpg",
-        "skybox/bottom.jpg",
-        "skybox/front.jpg",
-        "skybox/back.jpg"
-    };
-    unsigned int cubemapTex = loadCubemap(faces1);
+    unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
-    // === Sun texture ===
-    unsigned int sunTex = loadTexture("skybox2/sun.png");
+    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
+    std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
+    //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
-    glUseProgram(skyProg);
-    glUniform1i(glGetUniformLocation(skyProg,"skybox"),0);
+    Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
+    Material cubeMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", brickTextures,depthMap);
+    //Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
 
-    // === Render loop ===
-    while(!glfwWindowShouldClose(window))
-    {
-        float currentFrame = glfwGetTime();
+    StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
+                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),&cubeMaterial);
+    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
+                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),&floorMaterial);
+
+    SceneObject floor(&planeMesh);
+    SceneObject cube(&cubeMesh);
+    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
+    cube.transform.scale = glm::vec3(0.5f);
+
+    Skydome skydome;
+    if (!skydome.Setup()) {
+        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+
+    ModelFBX model("assets/models/grenade/untitled.fbx");
+    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
+    model.setFallbackMetallic(0.1f);
+    model.setFallbackSmoothness(0.3f);
+    model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
+    model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    model.transform.scale    = glm::vec3(0.01f);
+
+    ModelFBX model1("assets/models/grenade/untitled.fbx");
+    model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
+    model1.setFallbackMetallic(0.1f);
+    model1.setFallbackSmoothness(0.3f);
+    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
+    model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
+    model1.transform.scale    = glm::vec3(0.01f);
+
+    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
+    //model.playAnimationByIndex(0);
+    //model.playAnimationByName(\"Run");
+    //model.stopAnimation();
+    // for (auto val : ourModel.meshes[0].indices) {
+    //     //std::cout << val << " ";
+    // }/
+    //================================================================dIRECTION LIGHT
+    float rotationSpeed = 50.0f;
+    glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
+    float lightSpeed = 1.0f;
+    static bool autoLightMovement = false;
+    glm::vec3 lightColor = glm::vec3(1.0f);
+    float ambientStrength = 0.1f;
+    //=======================main loop
+
+    while (!glfwWindowShouldClose(window)) {
+
+        float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        //============================================================================imgui
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        ImGui::Begin("Scene settings");
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        if (ImGui::Button("Change cube rotation direction")) {
+            rotationSpeed *= -1.0f;
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Light control");
+        ImGui::SliderFloat("Light X", &lightPos.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 15.0f);
+        ImGui::SliderFloat("Light Z", &lightPos.z, -10.0f, 10.0f);
+        ImGui::Separator();
+        ImGui::Text("Light settings");
+        ImGui::ColorEdit3("Light color", glm::value_ptr(lightColor));
+        ImGui::SliderFloat("Ambient strength", &ambientStrength, 0.0f, 1.0f);
+        ImGui::Checkbox("Auto light movement", &autoLightMovement);
+        ImGui::End();
+
+        //============================================================================input
         processInput(window);
 
-        glClearColor(0.1f,0.1f,0.1f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        if (autoLightMovement) {
+            lightPos.x = sin(glfwGetTime() * lightSpeed) * 3.0f;
+            lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
+        }
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/SCR_HEIGHT,0.1f,100.0f);
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        //  (lightSpaceMatrix)
+        glm::mat4 lightProjection, lightView;
+        glm::mat4 lightSpaceMatrix;
+        float near_plane = 1.0f, far_plane = 17.5f;
+        float orthoSize = 20.0f;
+        float lightX = lightPos.x;
+        float lightZ = lightPos.z;
+        //glm::vec3 cubePos = cube.transform.position;
+        glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
+        // Dynamická velikost ortografické projekce
+        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
+        // Kamera světla se vždy dívá na cíl
+        lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
+        lightSpaceMatrix = lightProjection * lightView;
+
+        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+
+        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
+        model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
 
-        // směr slunce (pevný světový směr)
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-       glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.3f, 1.0f, -0.5f));
-        float sunDistance = 100.0f;
-        glm::vec3 sunPos = -sunDirection * sunDistance;
-        glUseProgram(sunProg);
-        glUniformMatrix4fv(glGetUniformLocation(sunProg,"view"),1,GL_FALSE,glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(sunProg,"projection"),1,GL_FALSE,glm::value_ptr(projection));
-        glUniform3fv(glGetUniformLocation(sunProg,"sunPos"),1,glm::value_ptr(sunPos));
-        glUniform1f(glGetUniformLocation(sunProg,"scale"),10.0f);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D,sunTex);
-        glUniform1i(glGetUniformLocation(sunProg,"sunTexture"),0);
-        glBindVertexArray(sunVAO);
-        glDrawArrays(GL_TRIANGLES,0,6);
-        glDisable(GL_BLEND);
-        // --- Draw Skybox ---
-        glDepthFunc(GL_LEQUAL);
-        glUseProgram(skyProg);
-        glm::mat4 skyView = glm::mat4(glm::mat3(view));
-        glUniformMatrix4fv(glGetUniformLocation(skyProg,"view"),1,GL_FALSE,glm::value_ptr(skyView));
-        glUniformMatrix4fv(glGetUniformLocation(skyProg,"projection"),1,GL_FALSE,glm::value_ptr(projection));
-        glBindVertexArray(skyVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP,cubemapTex);
-        glDrawArrays(GL_TRIANGLES,0,36);
-        glDepthFunc(GL_LESS);
+        // --- 1.pass depth map for shadow
+
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        //============================================================================draw shadows
+        floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
+        cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
+        model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
+        model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
+
+        // --- 2. pass color ---
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 view = camera.GetViewMatrix();
+        float t = (float)glfwGetTime();
+        model.updateAnimation(t);
+        //model1.updateAnimation(t);
+        //============================================================================draw geometry
+        glm::mat4 invProjection = glm::inverse(projection);
+        glm::mat4 invView = glm::inverse(view);
+        // ================================================================= //
+        float time = static_cast<float>(glfwGetTime());
+        glm::vec3 sunWorldPos = glm::vec3(
+            3000.0f * cos(time * 0.1f),
+            1500.0f,
+            3000.0f * sin(time * 0.1f)
+            );
+
+        glm::vec3 directionToSun = glm::normalize(sunWorldPos);
+        glDisable(GL_DEPTH_TEST);
+        skydome.Draw(invView, invProjection, directionToSun);
+        glEnable(GL_DEPTH_TEST);
+
+        floor.Draw(view, projection, lightSpaceMatrix);
+        cube.Draw(view, projection, lightSpaceMatrix);
+        model.draw(view,projection, camera.Position);
+        model1.draw(view,projection, camera.Position);
+
+        //============================================================================draw imgui
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     glfwTerminate();
     return 0;
 }
+//============================================================================input functiona
 
-// === Helper functions ===
-void processInput(GLFWwindow *window)
-{
-    float speed = 2.5f * deltaTime;
-    if(glfwGetKey(window,GLFW_KEY_W)==GLFW_PRESS) cameraPos += speed*cameraFront;
-    if(glfwGetKey(window,GLFW_KEY_S)==GLFW_PRESS) cameraPos -= speed*cameraFront;
-    if(glfwGetKey(window,GLFW_KEY_A)==GLFW_PRESS) cameraPos -= glm::normalize(glm::cross(cameraFront,cameraUp))*speed;
-    if(glfwGetKey(window,GLFW_KEY_D)==GLFW_PRESS) cameraPos += glm::normalize(glm::cross(cameraFront,cameraUp))*speed;
-    if(glfwGetKey(window,GLFW_KEY_ESCAPE)==GLFW_PRESS) glfwSetWindowShouldClose(window,true);
-}
+void processInput(GLFWwindow *window) {
 
-void mouse_callback(GLFWwindow* window,double xpos,double ypos)
-{
-    if(firstMouse){ lastX=xpos; lastY=ypos; firstMouse=false; }
-    float xoffset = xpos-lastX;
-    float yoffset = lastY-ypos;
-    lastX=xpos; lastY=ypos;
-
-    float sensitivity=0.1f;
-    xoffset*=sensitivity; yoffset*=sensitivity;
-    yaw+=xoffset; pitch+=yoffset;
-    if(pitch>89.0f) pitch=89.0f;
-    if(pitch<-89.0f) pitch=-89.0f;
-
-    glm::vec3 front;
-    front.x=cos(glm::radians(yaw))*cos(glm::radians(pitch));
-    front.y=sin(glm::radians(pitch));
-    front.z=sin(glm::radians(yaw))*cos(glm::radians(pitch));
-    cameraFront=glm::normalize(front);
-}
-
-void framebuffer_size_callback(GLFWwindow* window,int width,int height)
-{ glViewport(0,0,width,height); }
-
-unsigned int loadCubemap(std::vector<std::string> faces)
-{
-    unsigned int texID; glGenTextures(1,&texID); glBindTexture(GL_TEXTURE_CUBE_MAP,texID);
-    int w,h,n;
-    stbi_set_flip_vertically_on_load(false);
-    for(unsigned int i=0;i<faces.size();i++)
-    {
-        unsigned char* data = stbi_load(faces[i].c_str(),&w,&h,&n,0);
-        if(data){
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i,0,GL_RGB,w,h,0,GL_RGB,GL_UNSIGNED_BYTE,data);
-            stbi_image_free(data);
-        } else { std::cout<<"Cubemap failed: "<<faces[i]<<"\n"; }
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard) {
+        return;
     }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
-    return texID;
+
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) {
+        if (!keyLWasPressed) { // Kontrola, aby se nepřepínalo neustále
+            cursorEnabled = !cursorEnabled;
+            if (cursorEnabled) {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            } else {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+            keyLWasPressed = true;
+        }
+    } else {
+        keyLWasPressed = false;
+    }
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        camera.ProcessKeyboard(FORWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        camera.ProcessKeyboard(LEFT, deltaTime);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
-unsigned int loadTexture(const char* path)
-{
-    unsigned int tex; glGenTextures(1,&tex);
-    int w,h,n; unsigned char* data = stbi_load(path,&w,&h,&n,0);
-    if(data){
-        GLenum format = n==4?GL_RGBA:GL_RGB;
-        glBindTexture(GL_TEXTURE_2D,tex);
-        glTexImage2D(GL_TEXTURE_2D,0,format,w,h,0,format,GL_UNSIGNED_BYTE,data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    } else { std::cout<<"Texture failed: "<<path<<"\n"; }
-    stbi_image_free(data);
-    return tex;
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
+
+    ImGuiIO &io = ImGui::GetIO();
+
+    if (io.WantCaptureMouse) {
+        return;
+    }
+    if (cursorEnabled) {
+        return;
+    }
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
+
+    if (firstMouse) {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos;
+    lastX = xpos;
+    lastY = ypos;
+
+    camera.ProcessMouseMovement(xoffset, yoffset);
 }
+
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
+
+
+
