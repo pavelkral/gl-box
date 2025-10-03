@@ -1,6 +1,4 @@
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+
 #include "stb_image.h"
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
@@ -10,23 +8,28 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "../glbox/skydome.h"
-
-// --- Prototypy funkcí ---
-// ------------------- main.cpp -------------------
+#include "../glbox/Skydome.h"
+#include "../glbox/Skybox.h"
 
 
-// Prototypy funkcí pro zpětná volání a zpracování vstupu
+std::vector<std::string> faces1
+    {
+        "skybox2/right.bmp",
+        "skybox2/left.bmp",
+        "skybox2/top.bmp",
+        "skybox2/bottom.bmp",
+        "skybox2/front.bmp",
+        "skybox2/back.bmp"
+    };
+
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int compile_shaders();
-
-// Nastavení okna
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
 
-// Kamera
 glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -38,7 +41,6 @@ float lastX =  SCR_WIDTH / 2.0;
 float lastY =  SCR_HEIGHT / 2.0;
 float fov   = 45.0f;
 
-// Časování
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
@@ -74,6 +76,8 @@ int main()
         glfwTerminate();
         return -1;
     }
+     Skybox skybox(faces1);
+
 
     while (!glfwWindowShouldClose(window))
     {
@@ -109,6 +113,8 @@ int main()
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
         skydome.Draw(invView, invProjection, directionToSun);
+
+        // skybox.Draw(view, projection);
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

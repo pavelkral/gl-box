@@ -67,10 +67,11 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/geometry/CubeMesh.h
     glbox/geometry/PlaneMesh.h
     glbox/Texture.h
-    samples/skybox.h
+
     samples/default.h
-    samples/proceduralsky.h
-    glbox/skydome.h
+    samples/sky.h
+    glbox/Skydome.h
+    glbox/Skybox.h
 
 
 )

@@ -20,7 +20,8 @@
 #include "glbox/Texture.h"
 #include "glbox/geometry/CubeMesh.h"
 #include "glbox/geometry/PlaneMesh.h"
-#include "glbox/skydome.h"
+#include "glbox/Skydome.h"
+#include "glbox/Skybox.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -97,11 +98,21 @@ int main() {
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    //============================================================================
+    // ---Scene ---
+
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
     Shader modelDepthShader("shaders/model_depth.vert", "shaders/model_depth.frag");
 
-
-    //=======================================================scene setup
+    std::vector<std::string> faces1
+        {
+            "skybox2/right.bmp",
+            "skybox2/left.bmp",
+            "skybox2/top.bmp",
+            "skybox2/bottom.bmp",
+            "skybox2/front.bmp",
+            "skybox2/back.bmp"
+        };
 
     unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
     unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
@@ -125,13 +136,13 @@ int main() {
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
-    Skydome skydome;
-    if (!skydome.Setup()) {
-        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
+    // Skydome skydome;
+    // if (!skydome.Setup()) {
+    //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+    //     glfwTerminate();
+    //     return -1;
+    // }
+    Skybox skybox(faces1);
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
@@ -210,9 +221,9 @@ int main() {
         float lightZ = lightPos.z;
         //glm::vec3 cubePos = cube.transform.position;
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
-        // Dynamická velikost ortografické projekce
+
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
-        // Kamera světla se vždy dívá na cíl
+
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
@@ -220,23 +231,21 @@ int main() {
         cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
         model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
 
-
         // --- 1.pass depth map for shadow
-
+        //============================================================================draw shadows
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
-        //============================================================================draw shadows
+
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
         model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-
+        //============================================================================draw shadows
         // --- 2. pass color ---
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
@@ -246,7 +255,7 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
         model.updateAnimation(t);
-        //model1.updateAnimation(t);
+        model1.updateAnimation(t);
         //============================================================================draw geometry
         glm::mat4 invProjection = glm::inverse(projection);
         glm::mat4 invView = glm::inverse(view);
@@ -259,8 +268,10 @@ int main() {
             );
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
+
         glDisable(GL_DEPTH_TEST);
-        skydome.Draw(invView, invProjection, directionToSun);
+       // skydome.Draw(invView, invProjection, directionToSun);
+        skybox.Draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
         floor.Draw(view, projection, lightSpaceMatrix);
@@ -281,7 +292,12 @@ int main() {
     glfwTerminate();
     return 0;
 }
+
+
 //============================================================================input functiona
+//////////////////////////////////////////////////////////////////////////////////////////////
+/// \brief processInput
+/// \param window
 
 void processInput(GLFWwindow *window) {
 
