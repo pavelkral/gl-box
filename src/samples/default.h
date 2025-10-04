@@ -300,8 +300,7 @@ int main() {
 //////////////////////////////////////////////////////////////////////////////////////////////
 /// \brief processInput
 /// \param window
-///\
-///
+
 void processInput(GLFWwindow *window) {
 
     ImGuiIO &io = ImGui::GetIO();
@@ -364,6 +363,7 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
+
 
 
 

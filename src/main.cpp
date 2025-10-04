@@ -1,3 +1,4 @@
+//#include "samples/deferred.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -136,12 +137,12 @@ int main() {
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
-    // Skydome skydome;
-    // if (!skydome.Setup()) {
-    //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-    //     glfwTerminate();
-    //     return -1;
-    // }
+    Skydome skydome;
+    if (!skydome.Setup()) {
+        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+        glfwTerminate();
+        return -1;
+    }
     Skybox skybox(faces1);
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
@@ -270,8 +271,8 @@ int main() {
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
         glDisable(GL_DEPTH_TEST);
-       // skydome.Draw(invView, invProjection, directionToSun);
-        skybox.Draw(view, projection);
+         skydome.Draw(invView, invProjection, directionToSun);
+        //skybox.Draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
         floor.Draw(view, projection, lightSpaceMatrix);
@@ -361,6 +362,3 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
-
-
-
