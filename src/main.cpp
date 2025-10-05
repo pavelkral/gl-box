@@ -1,4 +1,4 @@
-//#include "samples/deferred.h"
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -61,6 +61,17 @@ int main() {
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
+
+    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "GLSL version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+    std::cout << "Renderer:       " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "Vendor:         " << glGetString(GL_VENDOR) << std::endl;
+
+    int major, minor;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+    std::cout << "OpenGL numeric version: " << major << "." << minor << std::endl;
+
     //============================================================================imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -115,12 +126,12 @@ int main() {
             "skybox2/back.bmp"
         };
 
-    unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/floor.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/floor.png");
     unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
-    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
-    std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
+    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "assets/floor.png"}};
+    std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "assets/fl.png"}};
     //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
     Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
@@ -137,12 +148,12 @@ int main() {
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
-    Skydome skydome;
-    if (!skydome.Setup()) {
-        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-        glfwTerminate();
-        return -1;
-    }
+    // Skydome skydome;
+    // if (!skydome.Setup()) {
+    //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+    //     glfwTerminate();
+    //     return -1;
+    // }
     Skybox skybox(faces1);
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
@@ -271,8 +282,8 @@ int main() {
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
         glDisable(GL_DEPTH_TEST);
-         skydome.Draw(invView, invProjection, directionToSun);
-        //skybox.Draw(view, projection);
+        // skydome.Draw(invView, invProjection, directionToSun);
+        skybox.Draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
         floor.Draw(view, projection, lightSpaceMatrix);
@@ -362,3 +373,6 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
+
+
+

@@ -62,6 +62,17 @@ int main() {
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
+
+    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "GLSL version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+    std::cout << "Renderer:       " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "Vendor:         " << glGetString(GL_VENDOR) << std::endl;
+
+    int major, minor;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+    std::cout << "OpenGL numeric version: " << major << "." << minor << std::endl;
+
     //============================================================================imgui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -116,7 +127,7 @@ int main() {
             "skybox2/back.bmp"
         };
 
-    unsigned int floorTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/floor.png");
     unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
     unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
