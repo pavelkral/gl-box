@@ -8,8 +8,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "../glbox/Skydome.h"
-#include "../glbox/Skybox.h"
+#include "../glbox/ProceduralSky.h"
+#include "../glbox/TexturedSky.h"
 
 
 std::vector<std::string> faces1
@@ -70,13 +70,13 @@ int main()
         return -1;
     }
 
-    Skydome skydome;
+    ProceduralSky skydome;
     if (!skydome.Setup()) {
         std::cerr << "Chyba pri inicializaci skydome." << std::endl;
         glfwTerminate();
         return -1;
     }
-     Skybox skybox(faces1);
+     TexturedSky skybox(faces1);
 
 
     while (!glfwWindowShouldClose(window))

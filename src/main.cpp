@@ -1,378 +1,548 @@
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "stb_image.h"
+
 #include <glad/glad.h>
-#include <glfw/glfw3.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
 #include <iostream>
+#include <vector>
 #include <string>
 
-#include "glbox/Camera.h"
-#include "glbox/Material.h"
-#include "glbox/Model.h"
-#include "glbox/SceneObject.h"
-#include "glbox/StaticMesh.h"
-#include "glbox/Transform.h"
-#include "glbox/Shader.h"
-#include "glbox/Texture.h"
-#include "glbox/geometry/CubeMesh.h"
-#include "glbox/geometry/PlaneMesh.h"
-#include "glbox/Skydome.h"
-#include "glbox/Skybox.h"
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height);
-void mouse_callback(GLFWwindow *window, double xpos, double ypos);
-void processInput(GLFWwindow *window);
-unsigned int loadTexture(const char *path);
 
+// --- Konstanty ---
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
-bool cursorEnabled = false;
-bool keyLWasPressed = false;
-Camera camera(glm::vec3(0.0f, 2.0f, 5.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
+
+// --- Kamera ---
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 5.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
+
+float yaw   = -90.0f; // horizontální úhel (počítá se od -Z směru)
+float pitch =  0.0f;  // vertikální úhel
+float lastX =  SCR_WIDTH / 2.0f;
+float lastY =  SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
+
+float fov = 45.0f;
+
+// --- Časování ---
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-int main() {
+// --- Prototypy ---
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void processInput(GLFWwindow *window);
+unsigned int createShader(const char* vs, const char* fs);
+void renderCube();
+void renderSphere();
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+// --- Globální VAO ---
+unsigned int cubeVAO = 0, cubeVBO = 0;
+unsigned int sphereVAO = 0, sphereVBO = 0, sphereEBO = 0;
+unsigned int indexCount;
+void setUberMaterial(unsigned int shader, int mode, const glm::vec3& color, float alpha,
+                     float ior, float fresnelPwr, float reflectStr)
+{
+    glUseProgram(shader);
+    glUniform1i(glGetUniformLocation(shader, "renderMode"), mode);
+    glUniform3fv(glGetUniformLocation(shader, "materialColor"), 1, glm::value_ptr(color));
+    glUniform1f(glGetUniformLocation(shader, "alpha"), alpha);
 
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Gl-box", NULL, NULL);
-    if (window == NULL) {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
+    // Pouze pro Mode 0 (Reflexe/Sklo)
+    if (mode == 0) {
+        glUniform1f(glGetUniformLocation(shader, "refractionIndex"), ior);
+        glUniform1f(glGetUniformLocation(shader, "fresnelPower"), fresnelPwr);
+        glUniform1f(glGetUniformLocation(shader, "reflectionStrength"), reflectStr);
     }
+}
+// --- Shader zdroje ---
+const char* equirectToCubemapVS = R"glsl(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+out vec3 WorldPos;
+uniform mat4 projection;
+uniform mat4 view;
+void main()
+{
+    WorldPos = aPos;
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}
+)glsl";
+
+const char* equirectToCubemapFS = R"glsl(
+#version 330 core
+out vec4 FragColor;
+in vec3 WorldPos;
+uniform sampler2D equirectangularMap;
+const vec2 invAtan = vec2(0.1591, 0.3183);
+vec2 SampleSphericalMap(vec3 v)
+{
+    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
+}
+void main()
+{
+    vec2 uv = SampleSphericalMap(normalize(WorldPos));
+    FragColor = vec4(texture(equirectangularMap, uv).rgb, 1.0);
+}
+)glsl";
+
+const char* skyboxVS = R"glsl(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+out vec3 TexCoords;
+uniform mat4 view;
+uniform mat4 projection;
+void main()
+{
+    TexCoords = aPos;
+    vec4 pos = projection * mat4(mat3(view)) * vec4(aPos, 1.0);
+    gl_Position = pos.xyww;
+}
+)glsl";
+
+const char* skyboxFS = R"glsl(
+#version 330 core
+out vec4 FragColor;
+in vec3 TexCoords;
+uniform samplerCube environmentMap;
+void main()
+{
+    vec3 envColor = texture(environmentMap, TexCoords).rgb;
+    envColor = envColor / (envColor + vec3(1.0));
+    envColor = pow(envColor, vec3(1.0/2.2));
+    FragColor = vec4(envColor, 1.0);
+}
+)glsl";
+
+const char* cubeVS = R"glsl(
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+out vec3 Normal;
+out vec3 Position;
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+void main()
+{
+    Normal = mat3(transpose(inverse(model))) * aNormal;
+    Position = vec3(model * vec4(aPos,1.0));
+    gl_Position = projection * view * vec4(Position,1.0);
+}
+)glsl";
+
+const char* cubeFS = R"glsl(
+#version 330 core
+out vec4 FragColor;
+in vec3 Normal;
+in vec3 Position;
+
+uniform vec3 cameraPos;
+uniform samplerCube environmentMap;
+
+// Uber Parametry:
+uniform int renderMode;             // 0: Reflexe/Sklo (default), 1: Cista Barva (difuzni), 2: Matny Odraz (vice k PBR)
+uniform vec3 materialColor;         // Barva pro difuzni (mode 1) nebo tonovani skla (mode 0)
+uniform float alpha;                // Globalni pruhlednost (pro Blending)
+
+// Reflexe/Sklo Parametry (Mode 0):
+uniform float refractionIndex;      // Index lomu (1.0/IOR)
+uniform float fresnelPower;         // Mocnitel pro Schlickovu aproximaci (typicky 5.0)
+uniform float reflectionStrength;   // Sila odrazu (mix)
+
+void main()
+{
+    vec3 N = normalize(Normal);
+    vec3 I = normalize(Position - cameraPos);
+
+    vec3 finalColor = vec3(0.0);
+    float finalAlpha = alpha;
+
+    if (renderMode == 1) // CISTA BARVA (Difuzni/Matna)
+    {
+        // Ignoruje envMap, kresli jen barvu s alpha. Vhodne pro neprustrelny material.
+        finalColor = materialColor;
+    }
+    else // renderMode == 0 (Reflexe/Sklo/Chrom)
+    {
+        // --- 1. REFRAKCE (Lámání světla) ---
+        vec3 refractedRay = refract(I, N, refractionIndex);
+
+        // Zpracovani totalniho odrazu nebo normalizace
+        if (dot(refractedRay, refractedRay) == 0.0) {
+            refractedRay = reflect(I, N);
+        } else {
+            refractedRay = normalize(refractedRay);
+        }
+        vec3 refractedColor = texture(environmentMap, refractedRay).rgb;
+
+        // --- 2. REFLEXE (Odraz) ---
+        vec3 reflectedRay = reflect(I, N);
+        vec3 reflectedColor = texture(environmentMap, reflectedRay).rgb;
+
+        // --- 3. FRESNELŮV EFEKT (Směs odrazu a lomu) ---
+        // Schlickova aproximace
+        float R0 = 0.04; // Zakladni odrazivost dielektrika
+        float fresnel = R0 + (1.0 - R0) * pow(1.0 - max(0.0, dot(-I, N)), fresnelPower);
+
+        // Uzivatelska kontrola sily odrazu
+        fresnel = mix(fresnel, reflectionStrength, 0.5);
+
+        // --- 4. MIX a TÓNOVÁNÍ ---
+        // Finalni barva je mix lomené a odražené barvy
+        finalColor = mix(refractedColor, reflectedColor, fresnel);
+
+        // Aplikace barvy pro tónování skla/reflexe
+        finalColor *= materialColor;
+    }
+    // else if (renderMode == 2) { ... } // Lze pridat slozitejsi PBR/matnou logiku
+
+    // Tonemapping a Gamma korekce (aplikuje se vzdy)
+    finalColor = finalColor / (finalColor + vec3(1.0));
+    finalColor = pow(finalColor, vec3(1.0/2.2));
+
+    FragColor = vec4(finalColor, finalAlpha);
+}
+)glsl";
+int main()
+{
+    // GLFW init
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH,SCR_HEIGHT,"HDRI Skybox",NULL,NULL);
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
+    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ std::cout<<"GLAD failed\n"; return -1; }
+
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // --- Shadery ---
+    unsigned int equirectToCubemapShader = createShader(equirectToCubemapVS,equirectToCubemapFS);
+    unsigned int skyboxShader = createShader(skyboxVS,skyboxFS);
+    unsigned int cubeShader = createShader(cubeVS,cubeFS);
 
-    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
-    std::cout << "GLSL version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
-    std::cout << "Renderer:       " << glGetString(GL_RENDERER) << std::endl;
-    std::cout << "Vendor:         " << glGetString(GL_VENDOR) << std::endl;
+    glUseProgram(equirectToCubemapShader);
+    glUniform1i(glGetUniformLocation(equirectToCubemapShader,"equirectangularMap"),0);
+    glUseProgram(skyboxShader);
+    glUniform1i(glGetUniformLocation(skyboxShader,"environmentMap"),0);
+    glUseProgram(cubeShader);
+    glUniform1i(glGetUniformLocation(cubeShader,"environmentMap"),0);
 
-    int major, minor;
-    glGetIntegerv(GL_MAJOR_VERSION, &major);
-    glGetIntegerv(GL_MINOR_VERSION, &minor);
-    std::cout << "OpenGL numeric version: " << major << "." << minor << std::endl;
+    // --- Načtení HDRI ---
+    stbi_set_flip_vertically_on_load(true);
+    int width, height, nrComponents;
+    float* data = stbi_loadf("assets/sky.hdr",&width,&height,&nrComponents,0);
+    if(!data){ std::cout<<"Failed to load HDRI\n"; return -1; }
+    unsigned int hdrTexture;
+    glGenTextures(1,&hdrTexture);
+    glBindTexture(GL_TEXTURE_2D,hdrTexture);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RGB16F,width,height,0,GL_RGB,GL_FLOAT,data);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    stbi_image_free(data);
 
-    //============================================================================imgui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    // --- Framebuffer pro konverzi ---
+    unsigned int captureFBO, captureRBO;
+    glGenFramebuffers(1,&captureFBO);
+    glGenRenderbuffers(1,&captureRBO);
+    glBindFramebuffer(GL_FRAMEBUFFER,captureFBO);
+    glBindRenderbuffer(GL_RENDERBUFFER,captureRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,512,512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,captureRBO);
 
-    //============================================================================
-    // --- DEPTH BUFFER SHADOWS ---
+    unsigned int envCubemap;
+    glGenTextures(1,&envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
+    for(unsigned int i=0;i<6;i++)
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X+i,0,GL_RGB16F,512,512,0,GL_RGB,GL_FLOAT,nullptr);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
 
-    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
-    unsigned int depthMapFBO;
-    glGenFramebuffers(1, &depthMapFBO);
-    unsigned int depthMap;
-    glGenTextures(1, &depthMap);
-    glBindTexture(GL_TEXTURE_2D, depthMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
-                 SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = {1.0, 1.0, 1.0, 1.0};
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE,
-                    GL_COMPARE_REF_TO_TEXTURE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                           depthMap, 0);
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    //============================================================================
-    // ---Scene ---
-
-    Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
-    Shader modelDepthShader("shaders/model_depth.vert", "shaders/model_depth.frag");
-
-    std::vector<std::string> faces1
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f),1.0f,0.1f,10.0f);
+    glm::mat4 captureViews[] =
         {
-            "skybox2/right.bmp",
-            "skybox2/left.bmp",
-            "skybox2/top.bmp",
-            "skybox2/bottom.bmp",
-            "skybox2/front.bmp",
-            "skybox2/back.bmp"
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(1,0,0), glm::vec3(0,-1,0)),
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(-1,0,0), glm::vec3(0,-1,0)),
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(0,1,0), glm::vec3(0,0,1)),
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(0,-1,0), glm::vec3(0,0,-1)),
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(0,0,1), glm::vec3(0,-1,0)),
+            glm::lookAt(glm::vec3(0,0,0), glm::vec3(0,0,-1), glm::vec3(0,-1,0))
         };
 
-    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/floor.png");
-    unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
+    glUseProgram(equirectToCubemapShader);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D,hdrTexture);
+    glViewport(0,0,512,512);
+    glBindFramebuffer(GL_FRAMEBUFFER,captureFBO);
+    for(unsigned int i=0;i<6;i++)
+    {
+        glUniformMatrix4fv(glGetUniformLocation(equirectToCubemapShader,"view"),1,GL_FALSE,glm::value_ptr(captureViews[i]));
+        glUniformMatrix4fv(glGetUniformLocation(equirectToCubemapShader,"projection"),1,GL_FALSE,glm::value_ptr(captureProjection));
+        glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_CUBE_MAP_POSITIVE_X+i,envCubemap,0);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        renderCube();
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER,0);
 
-    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "assets/floor.png"}};
-    std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "assets/fl.png"}};
-    //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
-
-    Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
-    Material cubeMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", brickTextures,depthMap);
-    //Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
-
-    StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
-                        std::vector<unsigned int>(std::begin(cubeIndices), std::end(cubeIndices)),&cubeMaterial);
-    StaticMesh planeMesh(std::vector<float>(std::begin(indexedPlaneVertices),std::end(indexedPlaneVertices)),
-                         std::vector<unsigned int>(std::begin(planeIndices),std::end(planeIndices)),&floorMaterial);
-
-    SceneObject floor(&planeMesh);
-    SceneObject cube(&cubeMesh);
-    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
-    cube.transform.scale = glm::vec3(0.5f);
-
-    // Skydome skydome;
-    // if (!skydome.Setup()) {
-    //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-    //     glfwTerminate();
-    //     return -1;
-    // }
-    Skybox skybox(faces1);
-
-    ModelFBX model("assets/models/grenade/untitled.fbx");
-    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model.setFallbackMetallic(0.1f);
-    model.setFallbackSmoothness(0.3f);
-    model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
-    model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-    model.transform.scale    = glm::vec3(0.01f);
-
-    ModelFBX model1("assets/models/grenade/untitled.fbx");
-    model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model1.setFallbackMetallic(0.1f);
-    model1.setFallbackSmoothness(0.3f);
-    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
-    model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
-    model1.transform.scale    = glm::vec3(0.01f);
-
-    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
-    //model.playAnimationByIndex(0);
-    //model.playAnimationByName(\"Run");
-    //model.stopAnimation();
-    // for (auto val : ourModel.meshes[0].indices) {
-    //     //std::cout << val << " ";
-    // }/
-    //================================================================dIRECTION LIGHT
-    float rotationSpeed = 50.0f;
-    glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
-    float lightSpeed = 1.0f;
-    static bool autoLightMovement = false;
-    glm::vec3 lightColor = glm::vec3(1.0f);
-    float ambientStrength = 0.1f;
-    //=======================main loop
-
-    while (!glfwWindowShouldClose(window)) {
-
+    // --- Hlavní smyčka ---
+    while(!glfwWindowShouldClose(window))
+    {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
-        //============================================================================imgui
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-        ImGui::Begin("Scene settings");
-        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-        if (ImGui::Button("Change cube rotation direction")) {
-            rotationSpeed *= -1.0f;
-        }
-
-        ImGui::Separator();
-        ImGui::Text("Light control");
-        ImGui::SliderFloat("Light X", &lightPos.x, -10.0f, 10.0f);
-        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 15.0f);
-        ImGui::SliderFloat("Light Z", &lightPos.z, -10.0f, 10.0f);
-        ImGui::Separator();
-        ImGui::Text("Light settings");
-        ImGui::ColorEdit3("Light color", glm::value_ptr(lightColor));
-        ImGui::SliderFloat("Ambient strength", &ambientStrength, 0.0f, 1.0f);
-        ImGui::Checkbox("Auto light movement", &autoLightMovement);
-        ImGui::End();
-
-        //============================================================================input
         processInput(window);
 
-        if (autoLightMovement) {
-            lightPos.x = sin(glfwGetTime() * lightSpeed) * 3.0f;
-            lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
-        }
+        glClearColor(0.1f,0.1f,0.1f,1.0f);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        glViewport(0, 0, width, height);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,100.0f);
+        glm::mat4 view = glm::lookAt(cameraPos,cameraPos+cameraFront,cameraUp);
+        //glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp)
+        // --- Koule ---
+        glUseProgram(cubeShader);
+        glm::mat4 model = glm::mat4(1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(cubeShader,"model"),1,GL_FALSE,glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(cubeShader,"view"),1,GL_FALSE,glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(cubeShader,"projection"),1,GL_FALSE,glm::value_ptr(projection));
+        glUniform3fv(glGetUniformLocation(cubeShader,"cameraPos"),1,glm::value_ptr(cameraPos));
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
 
-        //  (lightSpaceMatrix)
-        glm::mat4 lightProjection, lightView;
-        glm::mat4 lightSpaceMatrix;
-        float near_plane = 1.0f, far_plane = 17.5f;
-        float orthoSize = 20.0f;
-        float lightX = lightPos.x;
-        float lightZ = lightPos.z;
-        //glm::vec3 cubePos = cube.transform.position;
-        glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
+        glm::vec3 glassColor = glm::vec3(0.7f, 0.9f, 1.0f);
+        float ior = 1.0f / 1.52f; // Index lomu pro sklo
+        float reflection = 0.5f; // Ruční mix s Fresnelovým efektem
+        float alpha = 0.7f; // Průhlednost 70%
 
-        lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
+        setUberMaterial(cubeShader,
+                        0,                                  // renderMode: 0 (Reflexe/Sklo)
+                        glm::vec3(0.8f, 0.2f, 1.0f),        // materialColor (Tonovani)
+                        0.8f,                               // alpha
+                        1.0f / 1.52f,                       // IOR (vzduch/sklo)
+                        5.0f,                               // fresnelPower
+                        0.8f);
+        // Chrom: Mode 0, cista barva (1,1,1), neprůhledný, silná reflexe
+        setUberMaterial(cubeShader,
+                        0,                                  // renderMode: 0 (Reflexe/Sklo)
+                        glm::vec3(1.0f, 1.0f, 1.0f),        // materialColor (Bila/Stribrna)
+                        1.0f,                               // alpha
+                        1.0f,                               // IOR 1.0 (Refrakce pryc = jen odraz)
+                        5.0f,                               // fresnelPower
+                        1.0f);                              // reflectionStrength (plny odraz)
+        setUberMaterial(cubeShader,
+                        1,                                  // renderMode: 1 (Cista Barva)
+                        glm::vec3(1.0f, 0.2f, 0.2f),        // materialColor (Cervena)
+                        1.0f,                               // alpha
+                        0.0f, 0.0f, 0.0f);
 
-        lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
-        lightSpaceMatrix = lightProjection * lightView;
 
-        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
-        model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
+        renderSphere();
 
-
-        // --- 1.pass depth map for shadow
-        //============================================================================draw shadows
-        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-        model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-        //============================================================================draw shadows
-        // --- 2. pass color ---
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = camera.GetViewMatrix();
-        float t = (float)glfwGetTime();
-        model.updateAnimation(t);
-        model1.updateAnimation(t);
-        //============================================================================draw geometry
-        glm::mat4 invProjection = glm::inverse(projection);
-        glm::mat4 invView = glm::inverse(view);
-        // ================================================================= //
-        float time = static_cast<float>(glfwGetTime());
-        glm::vec3 sunWorldPos = glm::vec3(
-            3000.0f * cos(time * 0.1f),
-            1500.0f,
-            3000.0f * sin(time * 0.1f)
-            );
-
-        glm::vec3 directionToSun = glm::normalize(sunWorldPos);
-
-        glDisable(GL_DEPTH_TEST);
-        // skydome.Draw(invView, invProjection, directionToSun);
-        skybox.Draw(view, projection);
-        glEnable(GL_DEPTH_TEST);
-
-        floor.Draw(view, projection, lightSpaceMatrix);
-        cube.Draw(view, projection, lightSpaceMatrix);
-        model.draw(view,projection, camera.Position);
-        model1.draw(view,projection, camera.Position);
-
-        //============================================================================draw imgui
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        // --- Skybox ---
+        glDepthFunc(GL_LEQUAL);
+        glUseProgram(skyboxShader);
+        glUniformMatrix4fv(glGetUniformLocation(skyboxShader,"view"),1,GL_FALSE,glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(skyboxShader,"projection"),1,GL_FALSE,glm::value_ptr(projection));
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
+        renderCube();
+        glDepthFunc(GL_LESS);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+
     glfwTerminate();
     return 0;
 }
 
-
-//============================================================================input functiona
-//////////////////////////////////////////////////////////////////////////////////////////////
-/// \brief processInput
-/// \param window
-
-void processInput(GLFWwindow *window) {
-
-    ImGuiIO &io = ImGui::GetIO();
-    if (io.WantCaptureKeyboard) {
-        return;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+// --- Pomocné funkce ---
+void framebuffer_size_callback(GLFWwindow* window,int width,int height){ glViewport(0,0,width,height); }
+void processInput(GLFWwindow *window)
+{
+    float cameraSpeed = 2.5f * deltaTime; // rychlost pohybu
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        cameraPos += cameraSpeed * cameraFront;
+    if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        cameraPos -= cameraSpeed * cameraFront;
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) {
-        if (!keyLWasPressed) { // Kontrola, aby se nepřepínalo neustále
-            cursorEnabled = !cursorEnabled;
-            if (cursorEnabled) {
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-            } else {
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            }
-            keyLWasPressed = true;
-        }
-    } else {
-        keyLWasPressed = false;
-    }
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
-void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
+unsigned int createShader(const char* vs,const char* fs)
+{
+    unsigned int vertex = glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex,1,&vs,NULL); glCompileShader(vertex);
+    int success; char info[512]; glGetShaderiv(vertex,GL_COMPILE_STATUS,&success); if(!success){ glGetShaderInfoLog(vertex,512,NULL,info); std::cout<<"Vertex: "<<info<<"\n"; }
 
-    ImGuiIO &io = ImGui::GetIO();
+    unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(frag,1,&fs,NULL); glCompileShader(frag);
+    glGetShaderiv(frag,GL_COMPILE_STATUS,&success); if(!success){ glGetShaderInfoLog(frag,512,NULL,info); std::cout<<"Fragment: "<<info<<"\n"; }
 
-    if (io.WantCaptureMouse) {
-        return;
-    }
-    if (cursorEnabled) {
-        return;
-    }
-    float xpos = static_cast<float>(xposIn);
-    float ypos = static_cast<float>(yposIn);
+    unsigned int program = glCreateProgram(); glAttachShader(program,vertex); glAttachShader(program,frag); glLinkProgram(program);
+    glGetProgramiv(program,GL_LINK_STATUS,&success); if(!success){ glGetProgramInfoLog(program,512,NULL,info); std::cout<<"Link: "<<info<<"\n"; }
 
-    if (firstMouse) {
+    glDeleteShader(vertex); glDeleteShader(frag);
+    return program;
+}
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    if(firstMouse)
+    {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
     }
-
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos;
+    float yoffset = lastY - ypos; // y-coord obrácená
     lastX = xpos;
     lastY = ypos;
 
-    camera.ProcessMouseMovement(xoffset, yoffset);
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw   += xoffset;
+    pitch += yoffset;
+
+    if(pitch > 89.0f) pitch = 89.0f;
+    if(pitch < -89.0f) pitch = -89.0f;
+
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.y = sin(glm::radians(pitch));
+    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    cameraFront = glm::normalize(front);
 }
-
-void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
-    glViewport(0, 0, width, height);
+// --- Cube a Sphere rendering ---
+void renderCube()
+{
+    if(cubeVAO==0)
+    {
+        // Původní vrcholy jsou v rozsahu [-1.0, 1.0].
+        // Vynásobením 5x se rozsah změní na [-5.0, 5.0], což dá celkový rozměr 10x10x10.
+        float vertices[] = {
+            // ZÁDA
+            -5.0f,-5.0f,-5.0f,  5.0f,-5.0f,-5.0f,  5.0f, 5.0f,-5.0f,
+            5.0f, 5.0f,-5.0f, -5.0f, 5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            // PŘEDEK
+            -5.0f,-5.0f, 5.0f,  5.0f,-5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f, -5.0f, 5.0f, 5.0f, -5.0f,-5.0f, 5.0f,
+            // VRCH
+            -5.0f, 5.0f,-5.0f, -5.0f, 5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f,  5.0f, 5.0f,-5.0f, -5.0f, 5.0f,-5.0f,
+            // SPODEK
+            -5.0f,-5.0f,-5.0f, -5.0f,-5.0f, 5.0f,  5.0f,-5.0f, 5.0f,
+            5.0f,-5.0f, 5.0f,  5.0f,-5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            // LEVÁ STRANA
+            -5.0f, 5.0f, 5.0f, -5.0f, 5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            -5.0f,-5.0f,-5.0f, -5.0f,-5.0f, 5.0f, -5.0f, 5.0f, 5.0f,
+            // PRAVÁ STRANA
+            5.0f,-5.0f,-5.0f,  5.0f,-5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f,  5.0f, 5.0f,-5.0f,  5.0f,-5.0f,-5.0f
+        };
+        glGenVertexArrays(1,&cubeVAO);
+        glGenBuffers(1,&cubeVBO);
+        glBindBuffer(GL_ARRAY_BUFFER,cubeVBO);
+        glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
+        glBindVertexArray(cubeVAO);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
+    }
+    glBindVertexArray(cubeVAO);
+    glDrawArrays(GL_TRIANGLES,0,36);
+    glBindVertexArray(0);
 }
+void renderSphere()
+{
+    float M_PI = 3.141592654;
+    if(sphereVAO == 0)
+    {
+        const unsigned int X_SEGMENTS = 64;
+        const unsigned int Y_SEGMENTS = 64;
+        std::vector<glm::vec3> positions;
+        std::vector<glm::vec3> normals;
+        std::vector<unsigned int> indices;
 
+        for(unsigned int y = 0; y <= Y_SEGMENTS; ++y)
+        {
+            for(unsigned int x = 0; x <= X_SEGMENTS; ++x)
+            {
+                float xSeg = (float)x / X_SEGMENTS;
+                float ySeg = (float)y / Y_SEGMENTS;
+                float xPos = cos(xSeg * 2.0f * M_PI) * sin(ySeg * M_PI);
+                float yPos = cos(ySeg * M_PI);
+                float zPos = sin(xSeg * 2.0f * M_PI) * sin(ySeg * M_PI);
+                positions.push_back(glm::vec3(xPos, yPos, zPos));
+                normals.push_back(glm::vec3(xPos, yPos, zPos));
+            }
+        }
 
+        for(unsigned int y = 0; y < Y_SEGMENTS; ++y)
+        {
+            for(unsigned int x = 0; x < X_SEGMENTS; ++x)
+            {
+                unsigned int a = y * (X_SEGMENTS + 1) + x;
+                unsigned int b = (y + 1) * (X_SEGMENTS + 1) + x;
+                unsigned int c = (y + 1) * (X_SEGMENTS + 1) + x + 1;
+                unsigned int d = y * (X_SEGMENTS + 1) + x + 1;
 
+                indices.push_back(a); indices.push_back(b); indices.push_back(d);
+                indices.push_back(b); indices.push_back(c); indices.push_back(d);
+            }
+        }
+        indexCount = indices.size();
+
+        std::vector<float> data;
+        for(size_t i = 0; i < positions.size(); ++i)
+        {
+            data.push_back(positions[i].x);
+            data.push_back(positions[i].y);
+            data.push_back(positions[i].z);
+            data.push_back(normals[i].x);
+            data.push_back(normals[i].y);
+            data.push_back(normals[i].z);
+        }
+
+        glGenVertexArrays(1, &sphereVAO);
+        glGenBuffers(1, &sphereVBO);
+        glGenBuffers(1, &sphereEBO);
+
+        glBindVertexArray(sphereVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+
+    glBindVertexArray(sphereVAO);
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+}

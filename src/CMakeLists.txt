@@ -70,8 +70,8 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
 
     samples/default.h
     samples/sky.h
-    glbox/Skydome.h
-    glbox/Skybox.h
+    glbox/ProceduralSky.h
+    glbox/TexturedSky.h
     samples/reflection.h
     samples/hdrisky.h
     samples/hdrireflection.h

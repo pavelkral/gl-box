@@ -1,5 +1,5 @@
-#ifndef SKYDOME_H
-#define SKYDOME_H
+#ifndef PROCEDURALSKY_H
+#define PROCEDURALSKY_H
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -10,7 +10,7 @@
 // Pro zjednodušení a odstranění závislosti na externím cpp souboru
 // jsou členské funkce definovány inline (implicitně u definic v těle třídy).
 
-class Skydome {
+class ProceduralSky {
 public:
     // Nastaví a zkompiluje shadery, vytvoří VAO. Vrátí true při úspěchu.
     bool Setup() {
@@ -30,7 +30,7 @@ public:
 
         return true;
     }
-    ~Skydome() {
+    ~ProceduralSky() {
         glDeleteVertexArrays(1, &m_skyVAO);
        // glDeleteBuffers(1, &VBO);
        // glDeleteBuffers(1, &EBO); //  EBO!
@@ -171,4 +171,4 @@ private:
         return shaderProgram;
     }
 };
-#endif // SKYDOME_H
+#endif // PROCEDURALSKY_H

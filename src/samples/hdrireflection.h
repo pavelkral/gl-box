@@ -49,7 +49,21 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 unsigned int cubeVAO = 0, cubeVBO = 0;
 unsigned int sphereVAO = 0, sphereVBO = 0, sphereEBO = 0;
 unsigned int indexCount;
+void setUberMaterial(unsigned int shader, int mode, const glm::vec3& color, float alpha,
+                     float ior, float fresnelPwr, float reflectStr)
+{
+    glUseProgram(shader);
+    glUniform1i(glGetUniformLocation(shader, "renderMode"), mode);
+    glUniform3fv(glGetUniformLocation(shader, "materialColor"), 1, glm::value_ptr(color));
+    glUniform1f(glGetUniformLocation(shader, "alpha"), alpha);
 
+    // Pouze pro Mode 0 (Reflexe/Sklo)
+    if (mode == 0) {
+        glUniform1f(glGetUniformLocation(shader, "refractionIndex"), ior);
+        glUniform1f(glGetUniformLocation(shader, "fresnelPower"), fresnelPwr);
+        glUniform1f(glGetUniformLocation(shader, "reflectionStrength"), reflectStr);
+    }
+}
 // --- Shader zdroje ---
 const char* equirectToCubemapVS = R"glsl(
 #version 330 core
@@ -134,19 +148,74 @@ const char* cubeFS = R"glsl(
 out vec4 FragColor;
 in vec3 Normal;
 in vec3 Position;
+
 uniform vec3 cameraPos;
 uniform samplerCube environmentMap;
+
+// Uber Parametry:
+uniform int renderMode;             // 0: Reflexe/Sklo (default), 1: Cista Barva (difuzni), 2: Matny Odraz (vice k PBR)
+uniform vec3 materialColor;         // Barva pro difuzni (mode 1) nebo tonovani skla (mode 0)
+uniform float alpha;                // Globalni pruhlednost (pro Blending)
+
+// Reflexe/Sklo Parametry (Mode 0):
+uniform float refractionIndex;      // Index lomu (1.0/IOR)
+uniform float fresnelPower;         // Mocnitel pro Schlickovu aproximaci (typicky 5.0)
+uniform float reflectionStrength;   // Sila odrazu (mix)
+
 void main()
 {
+    vec3 N = normalize(Normal);
     vec3 I = normalize(Position - cameraPos);
-    vec3 R = reflect(I, normalize(Normal));
-    vec3 envColor = texture(environmentMap, R).rgb;
-    envColor = envColor / (envColor + vec3(1.0));
-    envColor = pow(envColor, vec3(1.0/2.2));
-    FragColor = vec4(envColor,1.0);
+
+    vec3 finalColor = vec3(0.0);
+    float finalAlpha = alpha;
+
+    if (renderMode == 1) // CISTA BARVA (Difuzni/Matna)
+    {
+        // Ignoruje envMap, kresli jen barvu s alpha. Vhodne pro neprustrelny material.
+        finalColor = materialColor;
+    }
+    else // renderMode == 0 (Reflexe/Sklo/Chrom)
+    {
+        // --- 1. REFRAKCE (Lámání světla) ---
+        vec3 refractedRay = refract(I, N, refractionIndex);
+
+        // Zpracovani totalniho odrazu nebo normalizace
+        if (dot(refractedRay, refractedRay) == 0.0) {
+            refractedRay = reflect(I, N);
+        } else {
+            refractedRay = normalize(refractedRay);
+        }
+        vec3 refractedColor = texture(environmentMap, refractedRay).rgb;
+
+        // --- 2. REFLEXE (Odraz) ---
+        vec3 reflectedRay = reflect(I, N);
+        vec3 reflectedColor = texture(environmentMap, reflectedRay).rgb;
+
+        // --- 3. FRESNELŮV EFEKT (Směs odrazu a lomu) ---
+        // Schlickova aproximace
+        float R0 = 0.04; // Zakladni odrazivost dielektrika
+        float fresnel = R0 + (1.0 - R0) * pow(1.0 - max(0.0, dot(-I, N)), fresnelPower);
+
+        // Uzivatelska kontrola sily odrazu
+        fresnel = mix(fresnel, reflectionStrength, 0.5);
+
+        // --- 4. MIX a TÓNOVÁNÍ ---
+        // Finalni barva je mix lomené a odražené barvy
+        finalColor = mix(refractedColor, reflectedColor, fresnel);
+
+        // Aplikace barvy pro tónování skla/reflexe
+        finalColor *= materialColor;
+    }
+    // else if (renderMode == 2) { ... } // Lze pridat slozitejsi PBR/matnou logiku
+
+    // Tonemapping a Gamma korekce (aplikuje se vzdy)
+    finalColor = finalColor / (finalColor + vec3(1.0));
+    finalColor = pow(finalColor, vec3(1.0/2.2));
+
+    FragColor = vec4(finalColor, finalAlpha);
 }
 )glsl";
-
 int main()
 {
     // GLFW init
@@ -262,6 +331,34 @@ int main()
         glUniform3fv(glGetUniformLocation(cubeShader,"cameraPos"),1,glm::value_ptr(cameraPos));
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
+
+        glm::vec3 glassColor = glm::vec3(0.7f, 0.9f, 1.0f);
+        float ior = 1.0f / 1.52f; // Index lomu pro sklo
+        float reflection = 0.5f; // Ruční mix s Fresnelovým efektem
+        float alpha = 0.7f; // Průhlednost 70%
+
+        setUberMaterial(cubeShader,
+                        0,                                  // renderMode: 0 (Reflexe/Sklo)
+                        glm::vec3(0.8f, 0.2f, 1.0f),        // materialColor (Tonovani)
+                        0.8f,                               // alpha
+                        1.0f / 1.52f,                       // IOR (vzduch/sklo)
+                        5.0f,                               // fresnelPower
+                        0.8f);
+        // Chrom: Mode 0, cista barva (1,1,1), neprůhledný, silná reflexe
+        setUberMaterial(cubeShader,
+                        0,                                  // renderMode: 0 (Reflexe/Sklo)
+                        glm::vec3(1.0f, 1.0f, 1.0f),        // materialColor (Bila/Stribrna)
+                        1.0f,                               // alpha
+                        1.0f,                               // IOR 1.0 (Refrakce pryc = jen odraz)
+                        5.0f,                               // fresnelPower
+                        1.0f);                              // reflectionStrength (plny odraz)
+        setUberMaterial(cubeShader,
+                        1,                                  // renderMode: 1 (Cista Barva)
+                        glm::vec3(1.0f, 0.2f, 0.2f),        // materialColor (Cervena)
+                        1.0f,                               // alpha
+                        0.0f, 0.0f, 0.0f);
+
+
         renderSphere();
 
         // --- Skybox ---
@@ -347,19 +444,27 @@ void renderCube()
 {
     if(cubeVAO==0)
     {
+        // Původní vrcholy jsou v rozsahu [-1.0, 1.0].
+        // Vynásobením 5x se rozsah změní na [-5.0, 5.0], což dá celkový rozměr 10x10x10.
         float vertices[] = {
-            -1.0f,-1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f,1.0f,-1.0f,
-            1.0f,1.0f,-1.0f,-1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,
-            -1.0f,-1.0f,1.0f,1.0f,-1.0f,1.0f,1.0f,1.0f,1.0f,
-            1.0f,1.0f,1.0f,-1.0f,1.0f,1.0f,-1.0f,-1.0f,1.0f,
-            -1.0f,1.0f,-1.0f,-1.0f,1.0f,1.0f,1.0f,1.0f,1.0f,
-            1.0f,1.0f,1.0f,1.0f,1.0f,-1.0f,-1.0f,1.0f,-1.0f,
-            -1.0f,-1.0f,-1.0f,-1.0f,-1.0f,1.0f,1.0f,-1.0f,1.0f,
-            1.0f,-1.0f,1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,
-            -1.0f,1.0f,1.0f,-1.0f,1.0f,-1.0f,1.0f,1.0f,-1.0f,
-            1.0f,1.0f,-1.0f,1.0f,1.0f,1.0f,-1.0f,1.0f,1.0f,
-            -1.0f,-1.0f,-1.0f,-1.0f,-1.0f,1.0f,1.0f,-1.0f,1.0f,
-            1.0f,-1.0f,1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f
+            // ZÁDA
+            -5.0f,-5.0f,-5.0f,  5.0f,-5.0f,-5.0f,  5.0f, 5.0f,-5.0f,
+            5.0f, 5.0f,-5.0f, -5.0f, 5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            // PŘEDEK
+            -5.0f,-5.0f, 5.0f,  5.0f,-5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f, -5.0f, 5.0f, 5.0f, -5.0f,-5.0f, 5.0f,
+            // VRCH
+            -5.0f, 5.0f,-5.0f, -5.0f, 5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f,  5.0f, 5.0f,-5.0f, -5.0f, 5.0f,-5.0f,
+            // SPODEK
+            -5.0f,-5.0f,-5.0f, -5.0f,-5.0f, 5.0f,  5.0f,-5.0f, 5.0f,
+            5.0f,-5.0f, 5.0f,  5.0f,-5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            // LEVÁ STRANA
+            -5.0f, 5.0f, 5.0f, -5.0f, 5.0f,-5.0f, -5.0f,-5.0f,-5.0f,
+            -5.0f,-5.0f,-5.0f, -5.0f,-5.0f, 5.0f, -5.0f, 5.0f, 5.0f,
+            // PRAVÁ STRANA
+            5.0f,-5.0f,-5.0f,  5.0f,-5.0f, 5.0f,  5.0f, 5.0f, 5.0f,
+            5.0f, 5.0f, 5.0f,  5.0f, 5.0f,-5.0f,  5.0f,-5.0f,-5.0f
         };
         glGenVertexArrays(1,&cubeVAO);
         glGenBuffers(1,&cubeVBO);

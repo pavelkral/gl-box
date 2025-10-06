@@ -1,5 +1,3 @@
-#ifndef DEFAULT_H
-#define DEFAULT_H
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -22,8 +20,8 @@
 #include "glbox/Texture.h"
 #include "glbox/geometry/CubeMesh.h"
 #include "glbox/geometry/PlaneMesh.h"
-#include "glbox/Skydome.h"
-#include "glbox/Skybox.h"
+#include "glbox/ProceduralSky.h"
+#include "glbox/TexturedSky.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -149,13 +147,13 @@ int main() {
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
-    // Skydome skydome;
+    // ProceduralSky skydome;
     // if (!skydome.Setup()) {
     //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
     //     glfwTerminate();
     //     return -1;
     // }
-    Skybox skybox(faces1);
+    TexturedSky skybox(faces1);
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);

@@ -1,5 +1,5 @@
-#ifndef SKYBOX_H
-#define SKYBOX_H
+#ifndef TEXTUREDSKY_H
+#define TEXTUREDSKY_H
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -50,10 +50,10 @@ unsigned int loadTexture(const char* path)
 }
 
 
-class Skybox {
+class TexturedSky {
 public:
     // Konstruktor
-    Skybox(const std::vector<std::string>& faces) {
+    TexturedSky(const std::vector<std::string>& faces) {
         // Zde budeme potřebovat přístup k funkci loadCubemap a kompilátoru shaderů
         InitShaders();
         InitData();
@@ -90,7 +90,7 @@ public:
     }
 
     // Destruktor (pro uvolnění OpenGL zdrojů)
-    ~Skybox() {
+    ~TexturedSky() {
         glDeleteVertexArrays(1, &skyboxVAO);
         glDeleteBuffers(1, &skyboxVBO);
         glDeleteProgram(shaderProgram);
@@ -101,7 +101,7 @@ private:
 
     unsigned int skyboxVAO, skyboxVBO, shaderProgram, cubemapTexture;
 
-    // Skybox vertex shader
+    // TexturedSky vertex shader
     const char *skyboxVertexShaderSource = R"(
     #version 330 core
     layout (location = 0) in vec3 aPos;
@@ -117,7 +117,7 @@ private:
     }
     )";
 
-        // Skybox fragment shader
+        // TexturedSky fragment shader
         const char *skyboxFragmentShaderSource = R"(
     #version 330 core
     out vec4 FragColor;
@@ -194,4 +194,4 @@ private:
     }
 };
 
-#endif // SKYBOX_H
+#endif // TEXTUREDSKY_H
