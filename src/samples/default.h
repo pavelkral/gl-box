@@ -10,18 +10,18 @@
 #include <iostream>
 #include <string>
 
-#include "glbox/Camera.h"
-#include "glbox/Material.h"
-#include "glbox/Model.h"
-#include "glbox/SceneObject.h"
-#include "glbox/StaticMesh.h"
-#include "glbox/Transform.h"
-#include "glbox/Shader.h"
-#include "glbox/Texture.h"
-#include "glbox/geometry/CubeMesh.h"
-#include "glbox/geometry/PlaneMesh.h"
-#include "glbox/ProceduralSky.h"
-#include "glbox/TexturedSky.h"
+#include "../glbox/Camera.h"
+#include "../glbox/Material.h"
+#include "../glbox/Model.h"
+#include "../glbox/SceneObject.h"
+#include "../glbox/StaticMesh.h"
+#include "../glbox/Transform.h"
+#include "../glbox/Shader.h"
+#include "../glbox/Texture.h"
+#include "../glbox/geometry/CubeMesh.h"
+#include "../glbox/geometry/PlaneMesh.h"
+#include "../glbox/ProceduralSky.h"
+#include "../glbox/TexturedSky.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -70,8 +70,8 @@ int main() {
     glGetIntegerv(GL_MAJOR_VERSION, &major);
     glGetIntegerv(GL_MINOR_VERSION, &minor);
     std::cout << "OpenGL numeric version: " << major << "." << minor << std::endl;
-
-    //============================================================================imgui
+    //============================================================================
+    //=====================================================================seetup
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
@@ -80,14 +80,15 @@ int main() {
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+    //============================================================================imgui
 
-    //============================================================================
     // --- DEPTH BUFFER SHADOWS ---
 
     const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
     unsigned int depthMapFBO;
     glGenFramebuffers(1, &depthMapFBO);
     unsigned int depthMap;
+
     glGenTextures(1, &depthMap);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
@@ -185,7 +186,9 @@ int main() {
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.1f;
-    //=======================main loop
+
+    //===========================================================================main loop
+    //==================================================================================.
 
     while (!glfwWindowShouldClose(window)) {
 
@@ -234,7 +237,6 @@ int main() {
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
 
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
-
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
@@ -244,7 +246,6 @@ int main() {
         model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
         model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
-
 
         // --- 1.pass depth map for shadow
         //============================================================================draw shadows
@@ -376,4 +377,4 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 
 
 
-#endif // DEFAULT_H
+

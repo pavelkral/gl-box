@@ -352,11 +352,11 @@ int main()
                         1.0f,                               // IOR 1.0 (Refrakce pryc = jen odraz)
                         5.0f,                               // fresnelPower
                         1.0f);                              // reflectionStrength (plny odraz)
-        setUberMaterial(cubeShader,
-                        1,                                  // renderMode: 1 (Cista Barva)
-                        glm::vec3(1.0f, 0.2f, 0.2f),        // materialColor (Cervena)
-                        1.0f,                               // alpha
-                        0.0f, 0.0f, 0.0f);
+        // setUberMaterial(cubeShader,
+        //                 1,                                  // renderMode: 1 (Cista Barva)
+        //                 glm::vec3(1.0f, 0.2f, 0.2f),        // materialColor (Cervena)
+        //                 1.0f,                               // alpha
+        //                 0.0f, 0.0f, 0.0f);
 
 
         renderSphere();

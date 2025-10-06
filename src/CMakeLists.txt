@@ -77,6 +77,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/hdrireflection.h
     glbox/HdriSky.h
     glbox/geometry/Sphere.h
+    samples/HdrReflectionSky.h
 
 
 )
