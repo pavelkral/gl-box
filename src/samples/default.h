@@ -32,7 +32,7 @@ const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
 bool cursorEnabled = false;
 bool keyLWasPressed = false;
-Camera camera(glm::vec3(0.0f, 2.0f, 5.0f));
+Camera camera(glm::vec3(0.0f, 3.0f, 8.0f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -127,7 +127,7 @@ int main() {
         };
 
     unsigned int floorTexID = Loader::Trexture::loadTexture("assets/floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("floor.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/floor.png");
     unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
@@ -148,12 +148,12 @@ int main() {
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
 
-    // ProceduralSky skydome;
-    // if (!skydome.Setup()) {
-    //     std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-    //     glfwTerminate();
-    //     return -1;
-    // }
+    ProceduralSky skydome;
+    if (!skydome.Setup()) {
+        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+        glfwTerminate();
+        return -1;
+    }
     TexturedSky skybox(faces1);
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
@@ -164,16 +164,17 @@ int main() {
     model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
 
-    ModelFBX model1("assets/models/grenade/untitled.fbx");
+    ModelFBX model1("assets/models/jet/jet.fbx");
     model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model1.setFallbackMetallic(0.1f);
     model1.setFallbackSmoothness(0.3f);
-    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
-    model1.transform.rotation = glm::vec3(0.0f, 45.0f, 0.0f);
-    model1.transform.scale    = glm::vec3(0.01f);
+    model1.transform.position = glm::vec3(-6.0f, -0.5f, -5.0f);
+    model1.transform.rotation = glm::vec3(90.0f, 180.0f, 180.0f);
+    model1.transform.scale    = glm::vec3(0.5f);
 
-    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
-    //model.playAnimationByIndex(0);
+    for(int i=0;i<model1.numAnimations();++i) std::cout << i << " anim " <<model1.animationName(i)  << std::endl;
+    //model1.stopAnimation();
+   // model.stopAnimation();
     //model.playAnimationByName(\"Run");
     //model.stopAnimation();
     // for (auto val : ourModel.meshes[0].indices) {
@@ -181,7 +182,7 @@ int main() {
     // }/
     //================================================================dIRECTION LIGHT
     float rotationSpeed = 50.0f;
-    glm::vec3 lightPos(-2.0f, 4.0f, -1.0f);
+    glm::vec3 lightPos(-2.0f, 14.0f, -1.0f);
     float lightSpeed = 1.0f;
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
@@ -208,9 +209,9 @@ int main() {
 
         ImGui::Separator();
         ImGui::Text("Light control");
-        ImGui::SliderFloat("Light X", &lightPos.x, -10.0f, 10.0f);
-        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 15.0f);
-        ImGui::SliderFloat("Light Z", &lightPos.z, -10.0f, 10.0f);
+        ImGui::SliderFloat("Light X", &lightPos.x, -40.0f, 40.0f);
+        ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 40.0f);
+        ImGui::SliderFloat("Light Z", &lightPos.z, -40.0f, 40.0f);
         ImGui::Separator();
         ImGui::Text("Light settings");
         ImGui::ColorEdit3("Light color", glm::value_ptr(lightColor));
@@ -229,8 +230,8 @@ int main() {
         //  (lightSpaceMatrix)
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
-        float near_plane = 1.0f, far_plane = 17.5f;
-        float orthoSize = 20.0f;
+        float near_plane = 1.0f, far_plane = 50.0f;
+        float orthoSize =40.0f;
         float lightX = lightPos.x;
         float lightZ = lightPos.z;
         //glm::vec3 cubePos = cube.transform.position;
@@ -245,7 +246,7 @@ int main() {
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
-        model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
+      //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
         // --- 1.pass depth map for shadow
         //============================================================================draw shadows
@@ -267,23 +268,26 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
         model.updateAnimation(t);
-        model1.updateAnimation(t);
+       // model1.updateAnimation(t);
         //============================================================================draw geometry
         glm::mat4 invProjection = glm::inverse(projection);
         glm::mat4 invView = glm::inverse(view);
         // ================================================================= //
         float time = static_cast<float>(glfwGetTime());
         glm::vec3 sunWorldPos = glm::vec3(
-            3000.0f * cos(time * 0.1f),
-            1500.0f,
-            3000.0f * sin(time * 0.1f)
+            30.0f * cos(time * 0.1f),
+            15.0f,
+            30.0f * sin(time * 0.1f)
             );
+        lightPos.x = sunWorldPos.x;
+        lightPos.z = sunWorldPos.z;
+        lightPos.y = sunWorldPos.y;
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
         glDisable(GL_DEPTH_TEST);
-        // skydome.Draw(invView, invProjection, directionToSun);
-        skybox.Draw(view, projection);
+         skydome.Draw(invView, invProjection, directionToSun);
+        //skybox.Draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
         floor.Draw(view, projection, lightSpaceMatrix);
