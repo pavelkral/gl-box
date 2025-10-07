@@ -66,7 +66,7 @@ int main()
     Sphere sphereCenter;
 
     // Inicializace objektů
-    sky.init("assets/sky.hdr");
+    sky.init("assets/textures/sky.hdr");
     sphereLeft.init();
     sphereRight.init();
     sphereCenter.init();

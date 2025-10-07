@@ -30,14 +30,22 @@ set(DISTFILES
     ../.gitignore
     ../LICENSE
     ../README.md
-    shaders/basic_texture_shader.frag
-    shaders/basic_texture_shader.vert
+    shaders/material/texture.frag
+    shaders/material/texture.vert
+    shaders/material/reflection.frag
+    shaders/material/reflection.vert
     shaders/depth.frag
     shaders/depth.vert
-    shaders/model.frag
-    shaders/model.vert
-    shaders/model_depth.frag
-    shaders/model_depth.vert
+    shaders/model/model.frag
+    shaders/model/model.vert
+    shaders/model/model_depth.frag
+    shaders/model/model_depth.vert
+    shaders/sky/hdri_sky.frag
+    shaders/sky/hdri_sky.vert
+    shaders/sky/procedural_sky.frag
+    shaders/sky/procedural_sky.vert
+    shaders/sky/textuured_sky.frag
+    shaders/sky/textuured_sky.vert
 )
 
 include_directories(
@@ -78,6 +86,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/HdriSky.h
     glbox/geometry/Sphere.h
     samples/HdrReflectionSky.h
+
 
 
 )

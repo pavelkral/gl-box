@@ -313,14 +313,14 @@ int main()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
     // --- Načtení textur pro skybox ---
-    std::vector<std::string> faces
+    std::vector<std::string> faces1
         {
-            "skybox2/right.bmp",
-            "skybox2/left.bmp",
-            "skybox2/top.bmp",
-            "skybox2/bottom.bmp",
-            "skybox2/front.bmp",
-            "skybox2/back.bmp"
+            "assets/textures/skybox/right.bmp",
+            "assets/textures/skybox/left.bmp",
+            "assets/textures/skybox/top.bmp",
+            "assets/textures/skybox/bottom.bmp",
+            "assets/textures/skybox/front.bmp",
+            "assets/textures/skybox/back.bmp"
         };
     unsigned int cubemapTexture = loadCubemap(faces);
 

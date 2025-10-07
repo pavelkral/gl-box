@@ -114,28 +114,28 @@ int main() {
     // ---Scene ---
 
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
-    Shader modelDepthShader("shaders/model_depth.vert", "shaders/model_depth.frag");
+    Shader modelDepthShader("shaders/model/model_depth.vert", "shaders/model/model_depth.frag");
 
     std::vector<std::string> faces1
         {
-            "skybox2/right.bmp",
-            "skybox2/left.bmp",
-            "skybox2/top.bmp",
-            "skybox2/bottom.bmp",
-            "skybox2/front.bmp",
-            "skybox2/back.bmp"
+            "assets/textures/skybox/right.bmp",
+            "assets/textures/skybox/left.bmp",
+            "assets/textures/skybox/top.bmp",
+            "assets/textures/skybox/bottom.bmp",
+            "assets/textures/skybox/front.bmp",
+            "assets/textures/skybox/back.bmp"
         };
 
-    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/floor.png");
-    unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
+    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/textures/floor.png");
+    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/textures/floor.png");
+    //unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
     //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
-    Material floorMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", floorTextures,depthMap);
-    Material cubeMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", brickTextures,depthMap);
+    Material floorMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,depthMap);
+    Material cubeMaterial("shaders/material/texture.vert","shaders/material/texture.frag", brickTextures,depthMap);
     //Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
 
     StaticMesh cubeMesh(std::vector<float>(std::begin(indexedCubeVertices), std::end(indexedCubeVertices)),
