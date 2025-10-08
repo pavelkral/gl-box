@@ -1,5 +1,5 @@
-#ifndef HDRREFLECTIONSKY_H
-#define HDRREFLECTIONSKY_H
+#ifndef HDRREFLECTION_H
+#define HDRREFLECTION_H
 // main.cpp
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -179,4 +179,4 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 }
 
 
-#endif // HDRREFLECTIONSKY_H
+#endif // HDRREFLECTION_H

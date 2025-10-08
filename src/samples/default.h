@@ -22,6 +22,8 @@
 #include "../glbox/geometry/PlaneMesh.h"
 #include "../glbox/ProceduralSky.h"
 #include "../glbox/TexturedSky.h"
+#include "../glbox/HdriSky.h"
+#include "../glbox/geometry/Sphere.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -84,7 +86,7 @@ int main() {
 
     // --- DEPTH BUFFER SHADOWS ---
 
-    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+    const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096;
     unsigned int depthMapFBO;
     glGenFramebuffers(1, &depthMapFBO);
     unsigned int depthMap;
@@ -93,8 +95,8 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, depthMap);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
                  SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     float borderColor[] = {1.0, 1.0, 1.0, 1.0};
@@ -186,7 +188,19 @@ int main() {
     float lightSpeed = 1.0f;
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
-    float ambientStrength = 0.1f;
+    float ambientStrength = 0.3f;
+
+
+    HdriSky sky;
+    Sphere sphereLeft;
+    Sphere sphereRight;
+    Sphere sphereCenter;
+
+    sky.init("assets/textures/sky.hdr");
+   // sphereLeft.init();
+  //  sphereRight.init();
+  //  sphereCenter.init();
+   // sphereLeft.setMaterial(0, glm::vec3(0.9f,0.7f,0.6f), 1.0f, 0.0f /*metallic*/, 0.6f /*roughness*/, 1.0f /*ao*/);
 
     //===========================================================================main loop
     //==================================================================================.
@@ -231,7 +245,7 @@ int main() {
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 50.0f;
-        float orthoSize =40.0f;
+        float orthoSize =20.0f;
         float lightX = lightPos.x;
         float lightZ = lightPos.z;
         //glm::vec3 cubePos = cube.transform.position;
@@ -246,6 +260,17 @@ int main() {
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
+
+        glm::mat4 modelA = glm::mat4(1.0f);
+        modelA = glm::translate(modelA, glm::vec3(-1.5f, 0.0f, 2.0f));
+        modelA = glm::scale(modelA, glm::vec3(0.5f));
+        glm::mat4 modelB = glm::mat4(1.0f);
+        modelB = glm::translate(modelB, glm::vec3(0.0f, 0.0f, 2.0f));
+        modelB = glm::scale(modelB, glm::vec3(0.5f));
+        glm::mat4 modelC = glm::mat4(1.0f);
+        modelC = glm::translate(modelC, glm::vec3(1.5f, 0.0f, 2.0f));
+        modelC = glm::scale(modelC, glm::vec3(0.5f));
+         const float IOR_GLASS = 1.0f / 1.52f;
       //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
         // --- 1.pass depth map for shadow
@@ -258,6 +283,10 @@ int main() {
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
         model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
+
+        sphereLeft.drawForShadow(depthShader.ID, modelA, lightSpaceMatrix);
+        sphereCenter.drawForShadow(depthShader.ID, modelB, lightSpaceMatrix);
+        sphereRight.drawForShadow(depthShader.ID, modelC, lightSpaceMatrix);
         //============================================================================draw shadows
         // --- 2. pass color ---
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -286,9 +315,28 @@ int main() {
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
         glDisable(GL_DEPTH_TEST);
-         skydome.Draw(invView, invProjection, directionToSun);
+        // skydome.Draw(invView, invProjection, directionToSun);
         //skybox.Draw(view, projection);
+        sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
+
+         // --- 1. Koule A: STŘÍBRNÝ CHROM (Vlevo) ---
+        glm::vec3 objPos   = glm::vec3(modelA[3]);           // pozice koule ze sloupce model matice
+        glm::vec3 lightDir = glm::normalize(lightPos - objPos);
+
+        sphereLeft.setMaterial(glm::vec3(1.0f,1.0f,1.0f), 1.0f, 1.0f, 0.05f, 1.0f, 0.3f);
+ sphereLeft.draw(modelA, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
+        // Sklo
+        sphereCenter.setMaterial(glm::vec3(0.7f,0.9f,1.0f), 0.3f, 0.0f, 0.05f, 1.0f, 0.6f);
+
+     sphereCenter.draw(modelB, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
+        sphereRight.setMaterial(glm::vec3(0.05f,0.05f,0.05f), 1.0f, 0.2f, 0.1f, 1.0f, 0.15f);
+
+
+
+
+        sphereRight.draw(modelC, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
+
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);

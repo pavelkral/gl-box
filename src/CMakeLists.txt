@@ -81,11 +81,11 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/ProceduralSky.h
     glbox/TexturedSky.h
     samples/reflection.h
-    samples/hdrisky.h
-    samples/hdrireflection.h
+
+
     glbox/HdriSky.h
     glbox/geometry/Sphere.h
-    samples/HdrReflectionSky.h
+    samples/hdrreflection.h
 
 
 

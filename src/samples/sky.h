@@ -10,18 +10,17 @@
 #include <vector>
 #include "../glbox/ProceduralSky.h"
 #include "../glbox/TexturedSky.h"
-
+#include "../glbox/HdriSky.h"
 
 std::vector<std::string> faces1
     {
-        "skybox2/right.bmp",
-        "skybox2/left.bmp",
-        "skybox2/top.bmp",
-        "skybox2/bottom.bmp",
-        "skybox2/front.bmp",
-        "skybox2/back.bmp"
+        "assets/textures/skybox/right.bmp",
+        "assets/textures/skybox/left.bmp",
+        "assets/textures/skybox/top.bmp",
+        "assets/textures/skybox/bottom.bmp",
+        "assets/textures/skybox/front.bmp",
+        "assets/textures/skybox/back.bmp"
     };
-
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -72,12 +71,15 @@ int main()
 
     ProceduralSky skydome;
     if (!skydome.Setup()) {
-        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
-        glfwTerminate();
-        return -1;
+    std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+    glfwTerminate();
+    return -1;
     }
-     TexturedSky skybox(faces1);
 
+    TexturedSky skybox(faces1);
+
+    HdriSky sky;
+    sky.init("assets/textures/sky.hdr");
 
     while (!glfwWindowShouldClose(window))
     {
@@ -111,9 +113,13 @@ int main()
         // 2. Vypočítáme směr ke slunci z pozice.
         // Pro skydome je to jednoduše normalizovaný vektor pozice.
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
-
-        skydome.Draw(invView, invProjection, directionToSun);
-
+        glDisable(GL_DEPTH_TEST);
+        // skydome.Draw(invView, invProjection, directionToSun);
+        //skybox.Draw(view, projection);
+        sky.draw(view, projection);
+        glEnable(GL_DEPTH_TEST);
+       //` skydome.Draw(invView, invProjection, directionToSun);
+        //sky.draw(view, projection);
         // skybox.Draw(view, projection);
         glfwSwapBuffers(window);
         glfwPollEvents();

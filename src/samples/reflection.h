@@ -322,7 +322,7 @@ int main()
             "assets/textures/skybox/front.bmp",
             "assets/textures/skybox/back.bmp"
         };
-    unsigned int cubemapTexture = loadCubemap(faces);
+    unsigned int cubemapTexture = loadCubemap(faces1);
 
     // --- Nastavení shaderů před smyčkou ---
     glUseProgram(cubeShaderProgram);

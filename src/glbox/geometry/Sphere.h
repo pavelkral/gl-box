@@ -1,284 +1,321 @@
-// Sphere.h
 #ifndef SPHERE_H
 #define SPHERE_H
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
 #include <cmath>
-#include <iostream> // pro createShader error
+#include <iostream>
 
 class Sphere
 {
 private:
-    unsigned int cubeShader; // Uber Shader
+    unsigned int shaderProgram;
+    unsigned int VAO, VBO, EBO;
+    unsigned int indexCount;
 
-    static unsigned int sphereVAO, sphereVBO, sphereEBO;
-    static unsigned int indexCount;
+    static const char* vertexShaderSrc;
+    static const char* fragmentShaderSrc;
 
-    // --- SHADERY INTEGROVÁNY PŘÍMO VE TŘÍDĚ ---
-    static const char* cubeVS;
-    static const char* cubeFS;
-    // ------------------------------------------
-
+    void initGeometry();
     static unsigned int createShader(const char* vs, const char* fs);
-    static void renderSphere();
 
 public:
-    Sphere() : cubeShader(0) {}
+    glm::vec3 color;
+    float alpha;
+    float metallic;
+    float roughness;
+    float ao;
+    float reflectionStrength;
 
-    void init();
-    void setMaterial(int mode, const glm::vec3& color, float alpha,
-                     float ior, float fresnelPwr, float reflectStr);
-    void draw(unsigned int envCubemap, const glm::mat4& model, const glm::mat4& view,
-              const glm::mat4& projection, const glm::vec3& cameraPos, bool transparent) const;
+    Sphere();
+    ~Sphere();
+
+    void setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl = 1.0f);
+    void draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj,
+              const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
+              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir, bool transparent=false) const;
+
+    void drawForShadow(unsigned int depthShader, const glm::mat4& model, const glm::mat4& lightSpaceMatrix) const;
 };
 
-// Vnější definice statických proměnných
-// Vnější definice statických proměnných
-unsigned int Sphere::sphereVAO = 0;
-unsigned int Sphere::sphereVBO = 0;
-unsigned int Sphere::sphereEBO = 0;
-unsigned int Sphere::indexCount = 0;
-
-// *** DEFINICE SHADERŮ ***
-const char* Sphere::cubeVS = R"glsl(
+// ---------------- SHADERY ----------------
+const char* Sphere::vertexShaderSrc = R"glsl(
 #version 330 core
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aNormal;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+
+out vec3 WorldPos;
 out vec3 Normal;
-out vec3 Position;
+out vec4 FragPosLightSpace;
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 lightSpaceMatrix;
+
 void main()
 {
+    WorldPos = vec3(model * vec4(aPos,1.0));
     Normal = mat3(transpose(inverse(model))) * aNormal;
-    Position = vec3(model * vec4(aPos,1.0));
-    gl_Position = projection * view * vec4(Position,1.0);
+    FragPosLightSpace = lightSpaceMatrix * vec4(WorldPos,1.0);
+    gl_Position = projection * view * vec4(WorldPos,1.0);
 }
 )glsl";
 
-// NOVÝ FRAGMENT SHADER PRO SPRÁVNOU LOGIKU CHROMU (Čistá reflexe)
-const char* Sphere::cubeFS = R"glsl(
+const char* Sphere::fragmentShaderSrc = R"glsl(
 #version 330 core
 out vec4 FragColor;
+
+in vec3 WorldPos;
 in vec3 Normal;
-in vec3 Position;
+in vec4 FragPosLightSpace;
 
 uniform vec3 cameraPos;
+uniform vec3 lightDir;
 uniform samplerCube environmentMap;
+uniform sampler2D shadowMap;
 
-// Uber Parametry:
-uniform int renderMode;            // 0: Reflexe/Sklo (default), 1: Cista Barva (difuzni)
-uniform vec3 materialColor;        // Barva pro difuzni nebo tonovani reflexe/skla
-uniform float alpha;               // Globalni pruhlednost (pro Blending)
+uniform int renderMode;        // 0 = PBR, 1 = pure color
+uniform vec3 materialColor;
+uniform float alpha;
+uniform float metallic;
+uniform float roughness;
+uniform float ao;
+uniform float reflectionStrength;
 
-// Reflexe/Sklo Parametry (Mode 0):
-uniform float refractionIndex;     // Index lomu (1.0/IOR)
-uniform float fresnelPower;        // Mocnitel pro Schlickovu aproximaci (typicky 5.0)
-uniform float reflectionStrength;  // Sila odrazu (mix)
+const float PI = 3.14159265359;
+
+// --- Utility functions ---
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N,H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    return a2 / max(denom, 0.000001);
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    return GeometrySchlickGGX(max(dot(N,V),0.0), roughness) * GeometrySchlickGGX(max(dot(N,L),0.0), roughness);
+}
+
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 N, vec3 L)
+{
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    if(projCoords.z > 1.0) return 0.0;
+
+    float currentDepth = projCoords.z;
+    float bias = max(0.005 * (1.0 - dot(N,L)), 0.0005);
+
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap,0);
+    for(int x=-1;x<=1;x++)
+        for(int y=-1;y<=1;y++)
+            shadow += currentDepth - bias > texture(shadowMap, projCoords.xy + vec2(x,y)*texelSize).r ? 1.0 : 0.0;
+
+    return shadow / 9.0;
+}
 
 void main()
 {
     vec3 N = normalize(Normal);
-    vec3 I = normalize(Position - cameraPos);
+    vec3 V = normalize(cameraPos - WorldPos);
+    vec3 L = normalize(-lightDir);
+    vec3 H = normalize(V + L);
 
-    vec3 finalColor = vec3(0.0);
-    float finalAlpha = alpha;
-
-    if (renderMode == 1) // CISTA BARVA (Difuzni/Matna)
+    if(renderMode == 1)
     {
-        finalColor = materialColor;
-    }
-    else // renderMode == 0 (Reflexe/Sklo/Chrom)
-    {
-        // --- 1. REFLEXE (Odraz) ---
-        vec3 reflectedRay = reflect(I, N);
-        vec3 reflectedColor = texture(environmentMap, reflectedRay).rgb;
-
-        // --- 2. FRESNELŮV EFEKT ---
-        float R0 = 0.04;
-        float fresnel = R0 + (1.0 - R0) * pow(1.0 - max(0.0, dot(-I, N)), fresnelPower);
-
-        // Finalni mix faktor, ktery bere v potaz uzivatelskou Reflection Strength
-        float finalMix = mix(fresnel, reflectionStrength, 0.5);
-
-        // ----------------------------------------------------
-        // KRITICKÁ LOGIKA PRO CHROM/KOVOVÉ MATERIÁLY
-        // ----------------------------------------------------
-
-        if (alpha >= 0.99 && reflectionStrength >= 0.99) // Čistý CHROME / KOV
-        {
-            // Plná, čistá reflexe.
-            finalColor = reflectedColor;
-        }
-        else // SKLO / Tónovaný reflexní dielektrikum
-        {
-            // --- 3. REFRAKCE (Lámání světla) ---
-            vec3 refractedRay = refract(I, N, refractionIndex);
-
-            // Zpracování totalniho odrazu
-            if (dot(refractedRay, refractedRay) == 0.0) {
-                refractedRay = reflect(I, N);
-            } else {
-                refractedRay = normalize(refractedRay);
-            }
-            vec3 refractedColor = texture(environmentMap, refractedRay).rgb;
-
-            // Smichani lomu (refraction) a odrazu (reflection) pomoci Fresnelova jevu
-            finalColor = mix(refractedColor, reflectedColor, finalMix);
-        }
-
-        // Aplikace barvy pro tonovani (pro chrom i sklo)
-        finalColor *= materialColor;
+        FragColor = vec4(materialColor, alpha);
+        return;
     }
 
-    // Tonemapping a Gamma korekce (aplikuje se vzdy)
-    finalColor = finalColor / (finalColor + vec3(1.0));
-    finalColor = pow(finalColor, vec3(1.0/2.2));
+    // --- PBR ---
+    vec3 albedo = materialColor;
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    FragColor = vec4(finalColor, finalAlpha);
+    float NDF = DistributionGGX(N,H,roughness);
+    float G   = GeometrySmith(N,V,L,roughness);
+    vec3 F    = fresnelSchlick(max(dot(H,V),0.0), F0);
+
+    float NdotL = max(dot(N,L),0.0);
+    float NdotV = max(dot(N,V),0.0);
+
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
+
+    vec3 diffuse = albedo / PI;
+    vec3 specular = (NDF*G*F)/(4.0*NdotV*NdotL + 0.0001);
+
+    float shadow = ShadowCalculation(FragPosLightSpace, N, L);
+
+    vec3 Lo = (kD*diffuse + specular) * NdotL * (1.0 - shadow);
+
+    // --- Environment reflection ---
+    vec3 R = reflect(-V, N);
+    vec3 envColor = texture(environmentMap, R).rgb;
+    vec3 envSpec = envColor * reflectionStrength;
+
+    // --- Ambient ---
+    vec3 ambient = vec3(0.03) * albedo * ao;
+
+    // --- Combine ---
+    vec3 color = ambient + Lo + envSpec;
+
+    // --- Tonemap + gamma ---
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));
+
+    FragColor = vec4(color, alpha);
 }
+
+
 )glsl";
-// *** KONEC DEFINICE SHADERŮ ***
 
-// IMPLEMENTACE METOD
+// ---------------- IMPLEMENTACE ----------------
+inline Sphere::Sphere(){
+    shaderProgram = createShader(vertexShaderSrc,fragmentShaderSrc);
+    initGeometry();
+    color = glm::vec3(1.0f);
+    alpha = 1.0f;
+    metallic = 0.0f;
+    roughness = 0.5f;
+    ao = 1.0f;
+    reflectionStrength = 0.0f; // reflexe slabá, aby byla vidět barva
+}
 
-inline unsigned int Sphere::createShader(const char* vs, const char* fs)
-{
-    unsigned int vertex = glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex, 1, &vs, NULL); glCompileShader(vertex);
-    int success; char info[512]; glGetShaderiv(vertex, GL_COMPILE_STATUS, &success); if (!success) { glGetShaderInfoLog(vertex, 512, NULL, info); std::cout << "Vertex: " << info << "\n"; }
+inline Sphere::~Sphere(){
+    glDeleteVertexArrays(1,&VAO);
+    glDeleteBuffers(1,&VBO);
+    glDeleteBuffers(1,&EBO);
+}
 
-    unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(frag, 1, &fs, NULL); glCompileShader(frag);
-    glGetShaderiv(frag, GL_COMPILE_STATUS, &success); if (!success) { glGetShaderInfoLog(frag, 512, NULL, info); std::cout << "Fragment: " << info << "\n"; }
+inline void Sphere::initGeometry(){
+    const float M_PI = 3.14159265359f;
+    const unsigned int X_SEGMENTS = 64, Y_SEGMENTS = 64;
+    std::vector<glm::vec3> pos, norm; std::vector<unsigned int> idx;
 
-    unsigned int program = glCreateProgram(); glAttachShader(program, vertex); glAttachShader(program, frag); glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &success); if (!success) { glGetProgramInfoLog(program, 512, NULL, info); std::cout << "Link: " << info << "\n"; }
+    for(unsigned int y=0;y<=Y_SEGMENTS;y++){
+        for(unsigned int x=0;x<=X_SEGMENTS;x++){
+            float xSeg=(float)x/X_SEGMENTS, ySeg=(float)y/Y_SEGMENTS;
+            float xPos=cos(xSeg*2.0*M_PI)*sin(ySeg*M_PI);
+            float yPos=cos(ySeg*M_PI);
+            float zPos=sin(xSeg*2.0*M_PI)*sin(ySeg*M_PI);
+            pos.push_back(glm::vec3(xPos,yPos,zPos));
+            norm.push_back(glm::vec3(xPos,yPos,zPos));
+        }
+    }
+    for(unsigned int y=0;y<Y_SEGMENTS;y++){
+        for(unsigned int x=0;x<X_SEGMENTS;x++){
+            unsigned int a=y*(X_SEGMENTS+1)+x;
+            unsigned int b=(y+1)*(X_SEGMENTS+1)+x;
+            unsigned int c=(y+1)*(X_SEGMENTS+1)+x+1;
+            unsigned int d=y*(X_SEGMENTS+1)+x+1;
+            idx.push_back(a); idx.push_back(b); idx.push_back(d);
+            idx.push_back(b); idx.push_back(c); idx.push_back(d);
+        }
+    }
 
+    indexCount = static_cast<unsigned int>(idx.size());
+    std::vector<float> data; data.reserve(pos.size()*6);
+    for(size_t i=0;i<pos.size();i++){
+        data.push_back(pos[i].x); data.push_back(pos[i].y); data.push_back(pos[i].z);
+        data.push_back(norm[i].x); data.push_back(norm[i].y); data.push_back(norm[i].z);
+    }
+
+    glGenVertexArrays(1,&VAO); glGenBuffers(1,&VBO); glGenBuffers(1,&EBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER,VBO);
+    glBufferData(GL_ARRAY_BUFFER,data.size()*sizeof(float),data.data(),GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,idx.size()*sizeof(unsigned int),idx.data(),GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0); glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(1); glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)(3*sizeof(float)));
+    glBindVertexArray(0);
+}
+
+inline unsigned int Sphere::createShader(const char* vs,const char* fs){
+    unsigned int vertex=glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex,1,&vs,NULL); glCompileShader(vertex);
+    int success; char info[512]; glGetShaderiv(vertex,GL_COMPILE_STATUS,&success);
+    if(!success){ glGetShaderInfoLog(vertex,512,NULL,info); std::cout<<"VS: "<<info<<"\n"; }
+    unsigned int frag=glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(frag,1,&fs,NULL); glCompileShader(frag);
+    glGetShaderiv(frag,GL_COMPILE_STATUS,&success);
+    if(!success){ glGetShaderInfoLog(frag,512,NULL,info); std::cout<<"FS: "<<info<<"\n"; }
+    unsigned int program=glCreateProgram(); glAttachShader(program,vertex); glAttachShader(program,frag); glLinkProgram(program);
+    glGetProgramiv(program,GL_LINK_STATUS,&success);
+    if(!success){ glGetProgramInfoLog(program,512,NULL,info); std::cout<<"Link: "<<info<<"\n"; }
     glDeleteShader(vertex); glDeleteShader(frag);
     return program;
 }
 
-inline void Sphere::renderSphere()
+inline void Sphere::setMaterial(const glm::vec3& col,float a,float m,float r,float ambient,float refl){
+    color=col; alpha=a; metallic=m; roughness=r; ao=ambient; reflectionStrength=refl;
+}
+
+inline void Sphere::draw(const glm::mat4& model,const glm::mat4& view,const glm::mat4& proj,
+                         const glm::vec3& cameraPos,unsigned int envCubemap,unsigned int shadowMap,
+                         const glm::mat4& lightSpaceMatrix,const glm::vec3& lightDir,bool transparent) const
 {
-    float M_PI = 3.141592654f; // Použijeme f pro float literál
-    if (sphereVAO == 0)
-    {
-        // ... (zde zkopírujte celou logiku pro výpočet geometrie a VAO/VBO/EBO) ...
-        const unsigned int X_SEGMENTS = 64;
-        const unsigned int Y_SEGMENTS = 64;
-        std::vector<glm::vec3> positions;
-        std::vector<glm::vec3> normals;
-        std::vector<unsigned int> indices;
+    glUseProgram(shaderProgram);
 
-        for (unsigned int y = 0; y <= Y_SEGMENTS; ++y)
-        {
-            for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
-            {
-                float xSeg = (float)x / X_SEGMENTS;
-                float ySeg = (float)y / Y_SEGMENTS;
-                float xPos = cos(xSeg * 2.0f * M_PI) * sin(ySeg * M_PI);
-                float yPos = cos(ySeg * M_PI);
-                float zPos = sin(xSeg * 2.0f * M_PI) * sin(ySeg * M_PI);
-                positions.push_back(glm::vec3(xPos, yPos, zPos));
-                normals.push_back(glm::vec3(xPos, yPos, zPos));
-            }
-        }
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"model"),1,GL_FALSE,glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"view"),1,GL_FALSE,glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"projection"),1,GL_FALSE,glm::value_ptr(proj));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"lightSpaceMatrix"),1,GL_FALSE,glm::value_ptr(lightSpaceMatrix));
 
-        for (unsigned int y = 0; y < Y_SEGMENTS; ++y)
-        {
-            for (unsigned int x = 0; x < X_SEGMENTS; ++x)
-            {
-                unsigned int a = y * (X_SEGMENTS + 1) + x;
-                unsigned int b = (y + 1) * (X_SEGMENTS + 1) + x;
-                unsigned int c = (y + 1) * (X_SEGMENTS + 1) + x + 1;
-                unsigned int d = y * (X_SEGMENTS + 1) + x + 1;
+    glUniform3fv(glGetUniformLocation(shaderProgram,"cameraPos"),1,glm::value_ptr(cameraPos));
+    glUniform3fv(glGetUniformLocation(shaderProgram,"materialColor"),1,glm::value_ptr(color));
+    glUniform1f(glGetUniformLocation(shaderProgram,"alpha"),alpha);
+    glUniform1f(glGetUniformLocation(shaderProgram,"metallic"),metallic);
+    glUniform1f(glGetUniformLocation(shaderProgram,"roughness"),roughness);
+    glUniform1f(glGetUniformLocation(shaderProgram,"ao"),ao);
+    glUniform1f(glGetUniformLocation(shaderProgram,"reflectionStrength"),reflectionStrength);
+    glUniform3fv(glGetUniformLocation(shaderProgram,"lightDir"),1,glm::value_ptr(lightDir));
 
-                indices.push_back(a); indices.push_back(b); indices.push_back(d);
-                indices.push_back(b); indices.push_back(c); indices.push_back(d);
-            }
-        }
-        indexCount = indices.size();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
+    glUniform1i(glGetUniformLocation(shaderProgram,"environmentMap"),0);
 
-        std::vector<float> data;
-        for (size_t i = 0; i < positions.size(); ++i)
-        {
-            data.push_back(positions[i].x);
-            data.push_back(positions[i].y);
-            data.push_back(positions[i].z);
-            data.push_back(normals[i].x);
-            data.push_back(normals[i].y);
-            data.push_back(normals[i].z);
-        }
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D,shadowMap);
+    glUniform1i(glGetUniformLocation(shaderProgram,"shadowMap"),1);
 
-        glGenVertexArrays(1, &sphereVAO);
-        glGenBuffers(1, &sphereVBO);
-        glGenBuffers(1, &sphereEBO);
+    if(transparent){ glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); }
 
-        glBindVertexArray(sphereVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, sphereVBO);
-        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereEBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    }
+    glBindVertexArray(VAO);
+    glDrawElements(GL_TRIANGLES,indexCount,GL_UNSIGNED_INT,0);
+    glBindVertexArray(0);
 
-    glBindVertexArray(sphereVAO);
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+    if(transparent){ glDisable(GL_BLEND); }
+}
+
+inline void Sphere::drawForShadow(unsigned int depthShader,const glm::mat4& model,const glm::mat4& lightSpaceMatrix) const{
+    glUseProgram(depthShader);
+    glUniformMatrix4fv(glGetUniformLocation(depthShader,"model"),1,GL_FALSE,glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(depthShader,"lightSpaceMatrix"),1,GL_FALSE,glm::value_ptr(lightSpaceMatrix));
+    glBindVertexArray(VAO);
+    glDrawElements(GL_TRIANGLES,indexCount,GL_UNSIGNED_INT,0);
     glBindVertexArray(0);
 }
 
-inline void Sphere::init()
-{
-    cubeShader = createShader(cubeVS, cubeFS);
-    glUseProgram(cubeShader);
-    glUniform1i(glGetUniformLocation(cubeShader, "environmentMap"), 0);
-}
+#endif
 
-inline void Sphere::setMaterial(int mode, const glm::vec3& color, float alpha,
-                                float ior, float fresnelPwr, float reflectStr)
-{
-    glUseProgram(cubeShader);
-    glUniform1i(glGetUniformLocation(cubeShader, "renderMode"), mode);
-    glUniform3fv(glGetUniformLocation(cubeShader, "materialColor"), 1, glm::value_ptr(color));
-    glUniform1f(glGetUniformLocation(cubeShader, "alpha"), alpha);
 
-    if (mode == 0) {
-        glUniform1f(glGetUniformLocation(cubeShader, "refractionIndex"), ior);
-        glUniform1f(glGetUniformLocation(cubeShader, "fresnelPower"), fresnelPwr);
-        glUniform1f(glGetUniformLocation(cubeShader, "reflectionStrength"), reflectStr);
-    }
-}
-
-inline void Sphere::draw(unsigned int envCubemap, const glm::mat4& model, const glm::mat4& view,
-                         const glm::mat4& projection, const glm::vec3& cameraPos, bool transparent) const
-{
-    glUseProgram(cubeShader);
-
-    glUniformMatrix4fv(glGetUniformLocation(cubeShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    glUniformMatrix4fv(glGetUniformLocation(cubeShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(cubeShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform3fv(glGetUniformLocation(cubeShader, "cameraPos"), 1, glm::value_ptr(cameraPos));
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
-
-    if (transparent) {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-
-    renderSphere();
-
-    if (transparent) {
-        glDisable(GL_BLEND);
-    }
-}
-
-#endif // SPHERE_H
