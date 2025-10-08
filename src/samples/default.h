@@ -308,9 +308,9 @@ int main() {
             15.0f,
             30.0f * sin(time * 0.1f)
             );
-        lightPos.x = sunWorldPos.x;
-        lightPos.z = sunWorldPos.z;
-        lightPos.y = sunWorldPos.y;
+       // lightPos.x = sunWorldPos.x;
+      //  lightPos.z = sunWorldPos.z;
+       // lightPos.y = sunWorldPos.y;
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
@@ -324,19 +324,46 @@ int main() {
         glm::vec3 objPos   = glm::vec3(modelA[3]);           // pozice koule ze sloupce model matice
         glm::vec3 lightDir = glm::normalize(lightPos - objPos);
 
-        sphereLeft.setMaterial(glm::vec3(1.0f,1.0f,1.0f), 1.0f, 1.0f, 0.05f, 1.0f, 0.3f);
- sphereLeft.draw(modelA, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
-        // Sklo
-        sphereCenter.setMaterial(glm::vec3(0.7f,0.9f,1.0f), 0.3f, 0.0f, 0.05f, 1.0f, 0.6f);
+        sphereLeft.setMaterial(
+            glm::vec3(0.05f, 0.75f, 0.05f), // Tmavá barva
+            1.0f,  // Alpha
+            0.0f,  // Metallic (plast není kov)
+            0.15f, // Roughness (nízká pro vysoký lesk)
+            1.0f,  // AO
+            0.01f,  // Reflection Strength (Fresnel se postará o sílu)
+            0.0f,  // Transmission (neprůhledný)
+            1.46f  // IOR (index lomu pro plast)
+            );
+        sphereLeft.draw(modelA, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
 
-     sphereCenter.draw(modelB, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
-        sphereRight.setMaterial(glm::vec3(0.05f,0.05f,0.05f), 1.0f, 0.2f, 0.1f, 1.0f, 0.15f);
+        // Koule vpravo: Zlato (kov)
+        sphereRight.setMaterial(
+            glm::vec3(1.0f, 0.765f, 0.336f), // Barva zlata
+            1.0f,   // Alpha
+            1.0f,   // Metallic
+            0.2f,   // Roughness
+            1.0f,   // AO
+            1.0f,   // Reflection Strength
+            0.0f,   // Transmission (neprůhledný)
+            0.0f    // IOR (pro kovy se nepoužívá)
+            );
+        sphereRight.draw(modelB, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
 
 
+        // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ ---
 
-
-        sphereRight.draw(modelC, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir, false);
-
+        // Koule uprostřed: Sklo
+        sphereCenter.setMaterial(
+            glm::vec3(0.9f, 0.9f, 1.0f), // Barva (ovlivní hlavně odlesky)
+            0.4f,  // Alpha (pro blending s pozadím)
+            0.0f,  // Metallic
+            0.05f, // Roughness (velmi hladké)
+            1.0f,  // AO
+            1.0f,  // Reflection Strength
+            1.0f,  // Transmission (plně průhledné/refrakční)
+            1.52f  // IOR (index lomu pro sklo)
+            );
+        sphereCenter.draw(modelC, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);

@@ -22,25 +22,30 @@ private:
     static unsigned int createShader(const char* vs, const char* fs);
 
 public:
+    // Vlastnosti materiálu
     glm::vec3 color;
     float alpha;
     float metallic;
     float roughness;
     float ao;
     float reflectionStrength;
+    float transmission; // 0 = neprůhledný, 1 = průhledný (sklo)
+    float ior;          // Index lomu světla (Index of Refraction)
 
     Sphere();
     ~Sphere();
 
-    void setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl = 1.0f);
+    void setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl = 1.0f, float trans = 0.0f, float indexOfRefraction = 1.52f);
+
     void draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj,
               const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
-              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir, bool transparent=false) const;
+              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir) const;
 
     void drawForShadow(unsigned int depthShader, const glm::mat4& model, const glm::mat4& lightSpaceMatrix) const;
 };
 
 // ---------------- SHADERY ----------------
+
 const char* Sphere::vertexShaderSrc = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 aPos;
@@ -57,10 +62,10 @@ uniform mat4 lightSpaceMatrix;
 
 void main()
 {
-    WorldPos = vec3(model * vec4(aPos,1.0));
+    WorldPos = vec3(model * vec4(aPos, 1.0));
     Normal = mat3(transpose(inverse(model))) * aNormal;
-    FragPosLightSpace = lightSpaceMatrix * vec4(WorldPos,1.0);
-    gl_Position = projection * view * vec4(WorldPos,1.0);
+    FragPosLightSpace = lightSpaceMatrix * vec4(WorldPos, 1.0);
+    gl_Position = projection * view * vec4(WorldPos, 1.0);
 }
 )glsl";
 
@@ -77,60 +82,55 @@ uniform vec3 lightDir;
 uniform samplerCube environmentMap;
 uniform sampler2D shadowMap;
 
-uniform int renderMode;        // 0 = PBR, 1 = pure color
 uniform vec3 materialColor;
 uniform float alpha;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;
 uniform float reflectionStrength;
+uniform float transmission; // 0.0 = neprůhledný, 1.0 = sklo/průhledný
+uniform float ior;          // Index lomu světla
 
 const float PI = 3.14159265359;
+const float MAX_REFLECTION_LOD = 4.0; // Max mipmap level pro odrazy
 
-// --- Utility functions ---
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
-{
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+// --- PBR a Utility funkce ---
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
-
-float DistributionGGX(vec3 N, vec3 H, float roughness)
-{
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness * roughness;
     float a2 = a * a;
-    float NdotH = max(dot(N,H), 0.0);
+    float NdotH = max(dot(N, H), 0.0);
     float NdotH2 = NdotH * NdotH;
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
     return a2 / max(denom, 0.000001);
 }
-
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-    float r = roughness + 1.0;
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
     float k = (r * r) / 8.0;
     return NdotV / (NdotV * (1.0 - k) + k);
 }
-
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
-{
-    return GeometrySchlickGGX(max(dot(N,V),0.0), roughness) * GeometrySchlickGGX(max(dot(N,L),0.0), roughness);
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    return GeometrySchlickGGX(NdotV, roughness) * GeometrySchlickGGX(NdotL, roughness);
 }
-
-float ShadowCalculation(vec4 fragPosLightSpace, vec3 N, vec3 L)
-{
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 N, vec3 L) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
     if(projCoords.z > 1.0) return 0.0;
-
     float currentDepth = projCoords.z;
-    float bias = max(0.005 * (1.0 - dot(N,L)), 0.0005);
-
+    float bias = max(0.005 * (1.0 - dot(N, L)), 0.0005);
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap,0);
-    for(int x=-1;x<=1;x++)
-        for(int y=-1;y<=1;y++)
-            shadow += currentDepth - bias > texture(shadowMap, projCoords.xy + vec2(x,y)*texelSize).r ? 1.0 : 0.0;
-
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
     return shadow / 9.0;
 }
 
@@ -138,59 +138,73 @@ void main()
 {
     vec3 N = normalize(Normal);
     vec3 V = normalize(cameraPos - WorldPos);
-    vec3 L = normalize(-lightDir);
-    vec3 H = normalize(V + L);
 
-    if(renderMode == 1)
-    {
-        FragColor = vec4(materialColor, alpha);
-        return;
-    }
-
-    // --- PBR ---
     vec3 albedo = materialColor;
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    float NDF = DistributionGGX(N,H,roughness);
-    float G   = GeometrySmith(N,V,L,roughness);
-    vec3 F    = fresnelSchlick(max(dot(H,V),0.0), F0);
+    // --- LOGIKA PRO PRŮHLEDNÉ MATERIÁLY (SKLO) ---
+    if (transmission > 0.0)
+    {
+        float ratio = 1.0 / ior;
+        vec3 T = refract(-V, N, ratio);
+        vec3 refractedColor = textureLod(environmentMap, T, roughness * MAX_REFLECTION_LOD).rgb;
 
-    float NdotL = max(dot(N,L),0.0);
-    float NdotV = max(dot(N,V),0.0);
+        vec3 R = reflect(-V, N);
+        vec3 reflectedColor = textureLod(environmentMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+
+        vec3 F = fresnelSchlick(max(dot(N, V), 0.0), F0);
+
+        vec3 color = mix(refractedColor, reflectedColor, F);
+
+        color = color / (color + vec3(1.0));
+        color = pow(color, vec3(1.0/2.2));
+
+        FragColor = vec4(color, alpha);
+        return;
+    }
+
+    // --- LOGIKA PRO NEPRŮHLEDNÉ MATERIÁLY (PLAST, KOV, ATD.) ---
+    vec3 L = normalize(-lightDir);
+    vec3 H = normalize(V + L);
+
+    float NDF = DistributionGGX(N, H, roughness);
+    float G   = GeometrySmith(N, V, L, roughness);
+    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - metallic;
 
     vec3 diffuse = albedo / PI;
-    vec3 specular = (NDF*G*F)/(4.0*NdotV*NdotL + 0.0001);
+    vec3 specular = (NDF * G * F) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001);
 
     float shadow = ShadowCalculation(FragPosLightSpace, N, L);
+    vec3 Lo = (kD * diffuse + specular) * max(dot(N, L), 0.0) * (1.0 - shadow);
 
-    vec3 Lo = (kD*diffuse + specular) * NdotL * (1.0 - shadow);
-
-    // --- Environment reflection ---
     vec3 R = reflect(-V, N);
-    vec3 envColor = texture(environmentMap, R).rgb;
-    vec3 envSpec = envColor * reflectionStrength;
+    vec3 envColor = textureLod(environmentMap, R, roughness * MAX_REFLECTION_LOD).rgb;
 
-    // --- Ambient ---
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 F_env = fresnelSchlick(max(dot(N, V), 0.0), F0);
 
-    // --- Combine ---
-    vec3 color = ambient + Lo + envSpec;
+    vec3 specular_IBL = envColor * F_env * reflectionStrength;
 
-    // --- Tonemap + gamma ---
+    vec3 kD_env = vec3(1.0) - F_env;
+    kD_env *= 1.0 - metallic;
+
+    vec3 irradiance = vec3(0.03);
+    vec3 diffuse_IBL = irradiance * albedo;
+    vec3 ambient = kD_env * diffuse_IBL * ao;
+
+    vec3 color = ambient + Lo + specular_IBL;
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
 
     FragColor = vec4(color, alpha);
 }
-
-
 )glsl";
 
 // ---------------- IMPLEMENTACE ----------------
+
 inline Sphere::Sphere(){
     shaderProgram = createShader(vertexShaderSrc,fragmentShaderSrc);
     initGeometry();
@@ -199,7 +213,9 @@ inline Sphere::Sphere(){
     metallic = 0.0f;
     roughness = 0.5f;
     ao = 1.0f;
-    reflectionStrength = 0.0f; // reflexe slabá, aby byla vidět barva
+    reflectionStrength = 1.0f; // Lepší výchozí hodnota
+    transmission = 0.0f;
+    ior = 1.52f;
 }
 
 inline Sphere::~Sphere(){
@@ -266,13 +282,14 @@ inline unsigned int Sphere::createShader(const char* vs,const char* fs){
     return program;
 }
 
-inline void Sphere::setMaterial(const glm::vec3& col,float a,float m,float r,float ambient,float refl){
+inline void Sphere::setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl, float trans, float indexOfRefraction){
     color=col; alpha=a; metallic=m; roughness=r; ao=ambient; reflectionStrength=refl;
+    transmission = trans; ior = indexOfRefraction;
 }
 
-inline void Sphere::draw(const glm::mat4& model,const glm::mat4& view,const glm::mat4& proj,
-                         const glm::vec3& cameraPos,unsigned int envCubemap,unsigned int shadowMap,
-                         const glm::mat4& lightSpaceMatrix,const glm::vec3& lightDir,bool transparent) const
+inline void Sphere::draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj,
+                         const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
+                         const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir) const
 {
     glUseProgram(shaderProgram);
 
@@ -290,6 +307,10 @@ inline void Sphere::draw(const glm::mat4& model,const glm::mat4& view,const glm:
     glUniform1f(glGetUniformLocation(shaderProgram,"reflectionStrength"),reflectionStrength);
     glUniform3fv(glGetUniformLocation(shaderProgram,"lightDir"),1,glm::value_ptr(lightDir));
 
+    // Nové uniformy
+    glUniform1f(glGetUniformLocation(shaderProgram, "transmission"), transmission);
+    glUniform1f(glGetUniformLocation(shaderProgram, "ior"), ior);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
     glUniform1i(glGetUniformLocation(shaderProgram,"environmentMap"),0);
@@ -298,13 +319,19 @@ inline void Sphere::draw(const glm::mat4& model,const glm::mat4& view,const glm:
     glBindTexture(GL_TEXTURE_2D,shadowMap);
     glUniform1i(glGetUniformLocation(shaderProgram,"shadowMap"),1);
 
-    if(transparent){ glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); }
+    // Zapnutí a vypnutí blendování se teď řídí podle materiálu
+    if(transmission > 0.0){
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
 
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES,indexCount,GL_UNSIGNED_INT,0);
     glBindVertexArray(0);
 
-    if(transparent){ glDisable(GL_BLEND); }
+    if(transmission > 0.0){
+        glDisable(GL_BLEND);
+    }
 }
 
 inline void Sphere::drawForShadow(unsigned int depthShader,const glm::mat4& model,const glm::mat4& lightSpaceMatrix) const{
@@ -317,5 +344,3 @@ inline void Sphere::drawForShadow(unsigned int depthShader,const glm::mat4& mode
 }
 
 #endif
-
-
