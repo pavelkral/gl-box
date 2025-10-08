@@ -164,7 +164,7 @@ void main()
     }
 
     // --- LOGIKA PRO NEPRŮHLEDNÉ MATERIÁLY (PLAST, KOV, ATD.) ---
-    vec3 L = normalize(-lightDir);
+    vec3 L = normalize(lightDir);
     vec3 H = normalize(V + L);
 
     float NDF = DistributionGGX(N, H, roughness);
@@ -179,6 +179,7 @@ void main()
     vec3 specular = (NDF * G * F) / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001);
 
     float shadow = ShadowCalculation(FragPosLightSpace, N, L);
+    //float shadow = 0.0;
     vec3 Lo = (kD * diffuse + specular) * max(dot(N, L), 0.0) * (1.0 - shadow);
 
     vec3 R = reflect(-V, N);
@@ -193,7 +194,10 @@ void main()
 
     vec3 irradiance = vec3(0.03);
     vec3 diffuse_IBL = irradiance * albedo;
-    vec3 ambient = kD_env * diffuse_IBL * ao;
+
+    // UPRAVENO: Ambientní IBL složka je nyní také ovlivněna reflectionStrength.
+    // Tím se zajistí, že při reflectionStrength=0.0 zmizí i zbytek IBL světla.
+    vec3 ambient = kD_env * diffuse_IBL * ao * reflectionStrength; // <-- ZDE JE ZMĚNA
 
     vec3 color = ambient + Lo + specular_IBL;
     color = color / (color + vec3(1.0));

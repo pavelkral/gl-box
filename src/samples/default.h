@@ -157,6 +157,12 @@ int main() {
         return -1;
     }
     TexturedSky skybox(faces1);
+    HdriSky sky;
+    sky.init("assets/textures/sky.hdr");
+
+    Sphere sphereLeft;
+    Sphere sphereRight;
+    Sphere sphereCenter;
 
     ModelFBX model("assets/models/grenade/untitled.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
@@ -189,18 +195,6 @@ int main() {
     static bool autoLightMovement = false;
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.3f;
-
-
-    HdriSky sky;
-    Sphere sphereLeft;
-    Sphere sphereRight;
-    Sphere sphereCenter;
-
-    sky.init("assets/textures/sky.hdr");
-   // sphereLeft.init();
-  //  sphereRight.init();
-  //  sphereCenter.init();
-   // sphereLeft.setMaterial(0, glm::vec3(0.9f,0.7f,0.6f), 1.0f, 0.0f /*metallic*/, 0.6f /*roughness*/, 1.0f /*ao*/);
 
     //===========================================================================main loop
     //==================================================================================.
@@ -319,20 +313,23 @@ int main() {
         //skybox.Draw(view, projection);
         sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
-
+        floor.Draw(view, projection, lightSpaceMatrix);
+        cube.Draw(view, projection, lightSpaceMatrix);
+        model.draw(view,projection, camera.Position);
+        model1.draw(view,projection, camera.Position);
          // --- 1. Koule A: STŘÍBRNÝ CHROM (Vlevo) ---
         glm::vec3 objPos   = glm::vec3(modelA[3]);           // pozice koule ze sloupce model matice
         glm::vec3 lightDir = glm::normalize(lightPos - objPos);
 
         sphereLeft.setMaterial(
-            glm::vec3(0.05f, 0.75f, 0.05f), // Tmavá barva
-            1.0f,  // Alpha
-            0.0f,  // Metallic (plast není kov)
-            0.15f, // Roughness (nízká pro vysoký lesk)
-            1.0f,  // AO
-            0.01f,  // Reflection Strength (Fresnel se postará o sílu)
-            0.0f,  // Transmission (neprůhledný)
-            1.46f  // IOR (index lomu pro plast)
+            glm::vec3(1.0f, 0.0f, 0.0f), // color (Albedo: Černá)
+            1.0f,                        // alpha
+            1.0f,                        // metallic (Kov: Spekulární odlesk bude černý)
+            0.2f,                       // roughness (Velmi nízká pro hladký, zrcadlový lesk)
+            1.0f,                        // ao
+            1.0f,                        // reflectionStrength (Nechat na 1.0 pro správný PBR vzhled)
+            0.0f,                        // transmission
+            0.0f
             );
         sphereLeft.draw(modelA, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
 
@@ -350,25 +347,25 @@ int main() {
         sphereRight.draw(modelB, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
 
 
-        // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ ---
 
+        // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ ---
+        glDepthMask(GL_FALSE); // NOVÁ ZMĚNA
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         // Koule uprostřed: Sklo
         sphereCenter.setMaterial(
             glm::vec3(0.9f, 0.9f, 1.0f), // Barva (ovlivní hlavně odlesky)
-            0.4f,  // Alpha (pro blending s pozadím)
-            0.0f,  // Metallic
-            0.05f, // Roughness (velmi hladké)
-            1.0f,  // AO
-            1.0f,  // Reflection Strength
-            1.0f,  // Transmission (plně průhledné/refrakční)
-            1.52f  // IOR (index lomu pro sklo)
+            0.2f,                        // Alpha (pro blending s pozadím)
+            0.0f,                        // metallic (SKLO JE DIELEKTRIKUM!) <-- ZMĚNA!
+            0.01f,                       // roughness (MUSÍ BÝT EXTRÉMNĚ NÍZKÁ pro zrcadlové sklo) <-- ZMĚNA!
+            1.0f,                        // AO
+            1.0f,                        // Reflection Strength
+            1.0f,                        // Transmission (plně průhledné/refrakční)
+            1.52f                        // IOR (index lomu pro sklo)
             );
         sphereCenter.draw(modelC, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
-
-        floor.Draw(view, projection, lightSpaceMatrix);
-        cube.Draw(view, projection, lightSpaceMatrix);
-        model.draw(view,projection, camera.Position);
-        model1.draw(view,projection, camera.Position);
+        glDisable(GL_BLEND);
+        glDepthMask(GL_TRUE); // NOVÁ ZMĚNA
 
         //============================================================================draw imgui
         ImGui::Render();
