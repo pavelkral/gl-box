@@ -12,7 +12,7 @@
 
 class ProceduralSky {
 public:
-    // Nastaví a zkompiluje shadery, vytvoří VAO. Vrátí true při úspěchu.
+
     bool Setup() {
         m_skyShader = compile_shaders(vertexShaderSource, fragmentShaderSource);
 
@@ -43,7 +43,7 @@ public:
         // nekonečnou oblohu)
         glUseProgram(m_skyShader);
 
-        // 2. Nastaví uniformy
+
         glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniProjekce"),
                            1, GL_FALSE, glm::value_ptr(invProjection));
         glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniPohled"), 1,
@@ -51,9 +51,7 @@ public:
         glUniform3fv(glGetUniformLocation(m_skyShader, "u_sunDirection"), 1,
                      glm::value_ptr(sunDirection));
 
-        // 3. Vykreslí oblohu
         glBindVertexArray(m_skyVAO);
-        // Vykreslí trojúhelník pokrývající celou obrazovku
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         // 4. Obnoví stav OpenGL
@@ -138,7 +136,7 @@ private:
     }
     )";
 
-    // Pomocná funkce pro kompilaci shaderů
+
     unsigned int compile_shaders(const char *vertSource, const char *fragSource) {
         unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(vertexShader, 1, &vertSource, NULL);
@@ -153,7 +151,7 @@ private:
         glAttachShader(shaderProgram, fragmentShader);
         glLinkProgram(shaderProgram);
 
-        // Kontrola chyb (zde zjednodušená pro stručnost header-only)
+
         int success;
         char infoLog[512];
         glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);

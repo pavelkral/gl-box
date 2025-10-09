@@ -323,7 +323,7 @@ inline void Sphere::draw(const glm::mat4& model, const glm::mat4& view, const gl
     glBindTexture(GL_TEXTURE_2D,shadowMap);
     glUniform1i(glGetUniformLocation(shaderProgram,"shadowMap"),1);
 
-    // Zapnutí a vypnutí blendování se teď řídí podle materiálu
+
     if(transmission > 0.0){
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

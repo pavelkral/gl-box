@@ -8,8 +8,8 @@
 #include <string>
 #include <iostream>
 #include <stb_image.h>
-// Potřebná funkce pro nahrávání textur, předpokládáme, že je definována v main.cpp
-// Zahrnuto zde jako extern, aby se vyhnulo duplicitní definici
+
+
 unsigned int loadCubemap(std::vector<std::string> faces)
 {
     unsigned int texID; glGenTextures(1,&texID); glBindTexture(GL_TEXTURE_CUBE_MAP,texID);
@@ -52,19 +52,17 @@ unsigned int loadTexture(const char* path)
 
 class TexturedSky {
 public:
-    // Konstruktor
+
     TexturedSky(const std::vector<std::string>& faces) {
-        // Zde budeme potřebovat přístup k funkci loadCubemap a kompilátoru shaderů
+
         InitShaders();
         InitData();
         cubemapTexture = loadCubemap(faces);
 
-        // Nastavení sampleru v shaderu
         glUseProgram(shaderProgram);
         glUniform1i(glGetUniformLocation(shaderProgram, "skybox"), 0);
     }
 
-    // Metoda pro vykreslení skyboxu
     void Draw(const glm::mat4& view, const glm::mat4& projection) {
         // Nastavení pro kreslení skyboxu
         glDepthFunc(GL_LEQUAL); // Změníme funkci hloubkového testu
@@ -78,7 +76,6 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(skyView));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-        // Vykreslení
         glBindVertexArray(skyboxVAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
@@ -89,7 +86,7 @@ public:
         glDepthFunc(GL_LESS);
     }
 
-    // Destruktor (pro uvolnění OpenGL zdrojů)
+
     ~TexturedSky() {
         glDeleteVertexArrays(1, &skyboxVAO);
         glDeleteBuffers(1, &skyboxVBO);
@@ -117,7 +114,7 @@ private:
     }
     )";
 
-        // TexturedSky fragment shader
+
         const char *skyboxFragmentShaderSource = R"(
     #version 330 core
     out vec4 FragColor;
@@ -129,7 +126,7 @@ private:
     }
     )";
 
-    // Pomocná funkce pro kompilaci shaderů
+
     unsigned int compileShader(const char* src, GLenum type) {
         unsigned int s = glCreateShader(type);
         glShaderSource(s, 1, &src, NULL);
@@ -145,7 +142,7 @@ private:
         return s;
     }
 
-    // Inicializace shaderů
+
     void InitShaders() {
         unsigned int skyVS = compileShader(skyboxVertexShaderSource, GL_VERTEX_SHADER);
         unsigned int skyFS = compileShader(skyboxFragmentShaderSource, GL_FRAGMENT_SHADER);
@@ -166,7 +163,6 @@ private:
         glDeleteShader(skyFS);
     }
 
-    // Inicializace dat VAO/VBO
     void InitData() {
         float skyboxVertices[] = {
             -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,

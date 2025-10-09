@@ -63,6 +63,15 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/SceneObject.h
     glbox/Model.h
     glbox/Camera.h
+    glbox/Shader.h
+    glbox/geometry/CubeMesh.h
+    glbox/geometry/PlaneMesh.h
+    glbox/Texture.h
+    glbox/ProceduralSky.h
+    glbox/TexturedSky.h
+    glbox/HdriSky.h
+    glbox/geometry/Sphere.h
+    glbox/Types.h
 
     #samples/old/cubes.h
     #samples/old/lights.h
@@ -70,27 +79,12 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     #samples/old/shadows.h
     #samples/old/shadows_camera.h
     samples/deferred.h
-
-    glbox/Shader.h
-    glbox/geometry/CubeMesh.h
-    glbox/geometry/PlaneMesh.h
-    glbox/Texture.h
-
+    samples/reflection.h
     samples/default.h
     samples/sky.h
-    glbox/ProceduralSky.h
-    glbox/TexturedSky.h
-    samples/reflection.h
 
-
-    glbox/HdriSky.h
-    glbox/geometry/Sphere.h
     samples/csm.h
-    samples/csm2.h
-
-
-
-
+    samples/geometryshader.h
 )
 
 if(WIN32)

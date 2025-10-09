@@ -1,9 +1,7 @@
 #ifndef CSM_H
 #define CSM_H
 // main.cpp
-// Funkční příklad: podlaha + krychle + směrové světlo + FPS kamera + shadow map
-// Kompilace (Linux):
-// g++ main.cpp -o shadow_demo -lglfw -ldl -lGL -pthread -I/path/to/glad/include -I/path/to/glm
+// Funkční příklad: podlaha + krychle + směrové světlo + FPS kamera + shadow mapz
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>

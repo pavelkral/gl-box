@@ -8,7 +8,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <string>
-#include "stb_image.h" // Potřebujeme pro HdriSky::init
+#include "stb_image.h"
 
 class HdriSky
 {
@@ -19,7 +19,6 @@ private:
 
     static unsigned int cubeVAO, cubeVBO;
 
-    // --- SHADERY INTEGROVÁNY PŘÍMO VE TŘÍDĚ ---
     static const char* equirectToCubemapVS;
     static const char* equirectToCubemapFS;
     static const char* skyboxVS;
@@ -37,11 +36,11 @@ public:
     unsigned int getCubemapTexture() const { return envCubemap; }
 };
 
-// Vnější definice statických proměnných a shaderů
+
 unsigned int HdriSky::cubeVAO = 0;
 unsigned int HdriSky::cubeVBO = 0;
 
-// *** DEFINICE SHADERŮ ***
+
 const char* HdriSky::equirectToCubemapVS = R"glsl(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -103,10 +102,7 @@ void main()
     FragColor = vec4(envColor, 1.0);
 }
 )glsl";
-// *** KONEC DEFINICE SHADERŮ ***
 
-
-// IMPLEMENTACE METOD (přesunuto z HdriSky.h)
 inline unsigned int HdriSky::createShader(const char* vs, const char* fs)
 {
     unsigned int vertex = glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex, 1, &vs, NULL); glCompileShader(vertex);
@@ -161,9 +157,7 @@ inline void HdriSky::renderCube()
 
 inline void HdriSky::init(const std::string& hdrPath)
 {
-    // Předpokládá se, že renderCube() je globálně dostupné, a proměnné (equirectToCubemapShader, envCubemap, atd.) jsou členy třídy.
 
-    // Inicializace shaderů (Standardní kód)
     equirectToCubemapShader = createShader(equirectToCubemapVS, equirectToCubemapFS);
     skyboxShader = createShader(skyboxVS, skyboxFS);
 
@@ -172,8 +166,6 @@ inline void HdriSky::init(const std::string& hdrPath)
     glUniform1i(glGetUniformLocation(equirectToCubemapShader, "equirectangularMap"), 0);
     glUseProgram(skyboxShader);
     glUniform1i(glGetUniformLocation(skyboxShader, "environmentMap"), 0);
-
-    // 1. Načtení HDRI
     stbi_set_flip_vertically_on_load(true);
     int width, height, nrComponents;
     float* data = stbi_loadf(hdrPath.c_str(), &width, &height, &nrComponents, 0);

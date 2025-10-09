@@ -14,10 +14,12 @@ class StaticMesh {
 public:
     unsigned int VAO, VBO, EBO;
     unsigned int vertexCount;
-    Material* material;
+
+
     std::vector<unsigned int> indices;
     std::vector<float> vertices;
     std::vector<Texture> textures;
+     Material* material;
 
     StaticMesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices, Material* mat)
         : material(mat) {

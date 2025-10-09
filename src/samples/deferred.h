@@ -15,7 +15,6 @@
 
 #include "stb_image.h"
 
-// Globální proměnné a struktury
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
@@ -33,17 +32,16 @@ float yaw = -90.0f;
 float pitch = 0.0f;
 float fov = 45.0f;
 
-// Funkce pro správu oken a vstupů
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 
-// Vykreslovací funkce
+
 void renderQuad();
 void renderCube();
 
-// Třída pro jednoduchý Shader
 class Shader {
 public:
     unsigned int ID;
@@ -242,11 +240,9 @@ int main() {
         return -1;
     }
 
-    // Načtení shaderů
     Shader gBufferShader(gBufferVertexShaderSource, gBufferFragmentShaderSource);
     Shader lightingShader(lightingVertexShaderSource, lightingFragmentShaderSource);
 
-    // Načtení textur pro kostky
     unsigned int containerTexture = loadTexture("floor.png");
 
     // Vytvoření G-Buffer FBO
@@ -296,7 +292,7 @@ int main() {
     glm::vec3 lightPos = glm::vec3(2.0, 2.0, 3.0);
     glm::vec3 lightColor = glm::vec3(1.0, 1.0, 1.0);
 
-    // Hlavní renderovací smyčka
+
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -354,18 +350,16 @@ int main() {
 
         renderQuad();
 
-        // Výměna bufferů a zpracování událostí
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // Uvolnění zdrojů
+
     glDeleteFramebuffers(1, &gBuffer);
     glfwTerminate();
     return 0;
 }
 
-// Implementace pomocných funkcí
 
 void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)

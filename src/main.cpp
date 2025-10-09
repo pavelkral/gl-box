@@ -1,6 +1,6 @@
-//#include "samples/default.h"
+#include "samples/default.h"
 //#include "samples/deferred.h"
 ///#include "samples/HdrReflectionSky.h"
 //#include "samples/reflection.h"
 //#include "samples/sky.h"
-#include "samples/csm2.h"
+//#include "samples/geometryshader.h"

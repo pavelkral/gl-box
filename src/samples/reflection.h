@@ -14,35 +14,27 @@
 #include <vector>
 
 
-// --- Prototypy funkcí ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadCubemap(std::vector<std::string> faces);
 
-// --- Nastavení ---
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
-// --- Kamera ---
 glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 
-// --- Ovládání myší ---
 bool firstMouse = true;
 float yaw   = -90.0f;
 float pitch =  0.0f;
 float lastX =  SCR_WIDTH / 2.0;
 float lastY =  SCR_HEIGHT / 2.0;
 
-// --- Časování ---
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// --- Shaders ---
-
-// Vertex Shader pro krychli
 const char *cubeVertexShaderSource = R"glsl(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -63,7 +55,6 @@ void main()
 }
 )glsl";
 
-// Fragment Shader pro krychli (reflection + specular highlight)
 const char *cubeFragmentShaderSource = R"glsl(
 #version 330 core
 out vec4 FragColor;
@@ -95,7 +86,7 @@ void main()
 }
 )glsl";
 
-// Vertex Shader pro Skybox
+
 const char *skyboxVertexShaderSource = R"glsl(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -113,7 +104,6 @@ void main()
 }
 )glsl";
 
-// Fragment Shader pro Skybox
 const char *skyboxFragmentShaderSource = R"glsl(
 #version 330 core
 out vec4 FragColor;
@@ -131,7 +121,7 @@ void main()
 
 int main()
 {
-    // --- Inicializace GLFW ---
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -141,7 +131,6 @@ int main()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    // --- Vytvoření okna ---
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Chrome Cube - Fixed", NULL, NULL);
     if (window == NULL)
     {
@@ -151,12 +140,9 @@ int main()
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-    // --- Registrace callbacku pro myš a uzamčení kurzoru ---
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    // --- Inicializace GLAD ---
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -289,8 +275,6 @@ int main()
         -1.0f, -1.0f,  1.0f,
         1.0f, -1.0f,  1.0f
     };
-
-    // --- VBO, VAO pro krychli ---
     unsigned int cubeVBO, cubeVAO;
     glGenVertexArrays(1, &cubeVAO);
     glGenBuffers(1, &cubeVBO);
@@ -302,7 +286,6 @@ int main()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 
-    // --- VBO, VAO pro skybox ---
     unsigned int skyboxVBO, skyboxVAO;
     glGenVertexArrays(1, &skyboxVAO);
     glGenBuffers(1, &skyboxVBO);
@@ -312,7 +295,6 @@ int main()
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-    // --- Načtení textur pro skybox ---
     std::vector<std::string> faces1
         {
             "assets/textures/skybox/right.bmp",
@@ -324,7 +306,6 @@ int main()
         };
     unsigned int cubemapTexture = loadCubemap(faces1);
 
-    // --- Nastavení shaderů před smyčkou ---
     glUseProgram(cubeShaderProgram);
     glUniform1i(glGetUniformLocation(cubeShaderProgram, "skybox"), 0);
 
@@ -332,32 +313,26 @@ int main()
     glUniform1i(glGetUniformLocation(skyboxShaderProgram, "skybox"), 0);
 
 
-    // --- Renderovací smyčka ---
     while (!glfwWindowShouldClose(window))
     {
-        // --- Výpočet času ---
+
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // --- Zpracování vstupu ---
+
         processInput(window);
 
-        // --- Vykreslování ---
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // --- Definice směru světla ---
         glm::vec3 lightDir(-0.5f, -1.0f, -0.5f);
 
-        // --- Vytvoření matic ---
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         model = glm::rotate(model, (float)glfwGetTime() * glm::radians(25.0f), glm::vec3(0.5f, 1.0f, 0.0f));
 
-
-        // --- Vykreslení krychle ---
         glUseProgram(cubeShaderProgram);
         glUniformMatrix4fv(glGetUniformLocation(cubeShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(glGetUniformLocation(cubeShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -371,7 +346,6 @@ int main()
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
 
-        // --- Vykreslení skyboxu ---
         glDepthFunc(GL_LEQUAL);
         glUseProgram(skyboxShaderProgram);
         view = glm::mat4(glm::mat3(glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp))); // Odstranění translace
@@ -385,13 +359,10 @@ int main()
         glBindVertexArray(0);
         glDepthFunc(GL_LESS);
 
-
-        // --- Výměna bufferů a zpracování událostí ---
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // --- Uvolnění zdrojů ---
     glDeleteVertexArrays(1, &cubeVAO);
     glDeleteVertexArrays(1, &skyboxVAO);
     glDeleteBuffers(1, &cubeVBO);
@@ -403,7 +374,7 @@ int main()
     return 0;
 }
 
-// --- Implementace funkcí ---
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
