@@ -85,6 +85,8 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
 
     glbox/HdriSky.h
     glbox/geometry/Sphere.h
+    samples/csm.h
+    samples/csm2.h
 
 
 

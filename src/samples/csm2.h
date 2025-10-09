@@ -1,3 +1,5 @@
+#ifndef CSM2_H
+#define CSM2_H
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -182,7 +184,7 @@ int main() {
 
     for(int i=0;i<model1.numAnimations();++i) std::cout << i << " anim " <<model1.animationName(i)  << std::endl;
     //model1.stopAnimation();
-   // model.stopAnimation();
+    // model.stopAnimation();
     //model.playAnimationByName(\"Run");
     //model.stopAnimation();
     // for (auto val : ourModel.meshes[0].indices) {
@@ -264,8 +266,8 @@ int main() {
         glm::mat4 modelC = glm::mat4(1.0f);
         modelC = glm::translate(modelC, glm::vec3(1.5f, 0.0f, 2.0f));
         modelC = glm::scale(modelC, glm::vec3(0.5f));
-         const float IOR_GLASS = 1.0f / 1.52f;
-      //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
+        const float IOR_GLASS = 1.0f / 1.52f;
+        //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
 
         // --- 1.pass depth map for shadow
         //============================================================================draw shadows
@@ -291,7 +293,7 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
         model.updateAnimation(t);
-       // model1.updateAnimation(t);
+        // model1.updateAnimation(t);
         //============================================================================draw geometry
         glm::mat4 invProjection = glm::inverse(projection);
         glm::mat4 invView = glm::inverse(view);
@@ -302,9 +304,9 @@ int main() {
             15.0f,
             30.0f * sin(time * 0.1f)
             );
-       // lightPos.x = sunWorldPos.x;
-      //  lightPos.z = sunWorldPos.z;
-       // lightPos.y = sunWorldPos.y;
+        // lightPos.x = sunWorldPos.x;
+        //  lightPos.z = sunWorldPos.z;
+        // lightPos.y = sunWorldPos.y;
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
@@ -317,7 +319,7 @@ int main() {
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
         model1.draw(view,projection, camera.Position);
-         // --- 1. Koule A: STŘÍBRNÝ CHROM (Vlevo) ---
+        // --- 1. Koule A: STŘÍBRNÝ CHROM (Vlevo) ---
         glm::vec3 objPos   = glm::vec3(modelA[3]);           // pozice koule ze sloupce model matice
         glm::vec3 lightDir = glm::normalize(lightPos - objPos);
 
@@ -454,3 +456,5 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 
 
 
+
+#endif // CSM2_H
