@@ -23,7 +23,9 @@
 #ifndef aiTextureType_SHININESS
 #define aiTextureType_SHININESS aiTextureType_SPECULAR
 #endif
+#define GLM_ENABLE_EXPERIMENTAL
 
+//#include <glm/gtx/component_wise.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>

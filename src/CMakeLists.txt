@@ -85,6 +85,8 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
 
     samples/csm.h
     samples/geometryshader.h
+    samples/ecs.h
+    samples/tesselation.h
 )
 
 if(WIN32)
@@ -97,7 +99,7 @@ if(WIN32)
     # Windows-specific linking
     target_link_libraries(${PROJECT_NAME}
         ${CMAKE_CURRENT_BINARY_DIR}/../../../libs/glfw/glfw3dll.lib
-        ${CMAKE_CURRENT_BINARY_DIR}/../../../libs/assimp/lib/assimp-vc140-mt.lib
+        ${CMAKE_CURRENT_BINARY_DIR}/../../../libs/assimp/lib/assimp-vc143-mt.lib
         ${CMAKE_CURRENT_BINARY_DIR}/../../../libs/irrklang/irrKlang.lib
         opengl32
         glu32
