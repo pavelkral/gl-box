@@ -4,7 +4,6 @@
 #include <vector>
 #include <cmath>
 
-// GLAD musí být vždy před GLFW
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -140,14 +139,13 @@ GLuint compileShaders()
     return program;
 }
 
-// --- HLAVNÍ FUNKCE ---
 
 int main()
 {
-    // 1. Inicializace GLFW a nastavení verze
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6); // Vyžadujeme 4.6 (pro jistotu), min. je 4.0
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6); // 4.6 , min. 4.0
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "OpenGL Tessellation Example", NULL, NULL);
@@ -159,9 +157,7 @@ int main()
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-   // glfwSetFramebufferSizeCallback(framebuffer_size_callback);
 
-    // 2. Inicializace GLAD (načtení všech funkcí pro danou verzi)
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
@@ -172,7 +168,6 @@ int main()
     // Nastavení, že každý vykreslovací příkaz bude zpracován jako 4-vrcholový patch
     glPatchParameteri(GL_PATCH_VERTICES, 4);
 
-    // 4. Kompilace a linkování programu
     GLuint shaderProgram = compileShaders();
 
     // 5. Příprava dat (VAO a VBO)
@@ -203,16 +198,11 @@ int main()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // Povolení testu hloubky
     glEnable(GL_DEPTH_TEST);
 
-    // 6. Render loop
     while (!glfwWindowShouldClose(window))
     {
-        // Vstup (např. pohyb myši by zde mohl měnit tessLevel)
-        // (Zde je vynechán vstup pro zjednodušení)
 
-        // Renderování
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -256,12 +246,10 @@ int main()
          glDrawArrays(GL_PATCHES, 0, 4);
          glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        // Konec vykreslování
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    // 8. Čištění
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteProgram(shaderProgram);

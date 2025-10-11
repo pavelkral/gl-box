@@ -1,10 +1,10 @@
-// #include "samples/default.h"
-//#include "samples/deferred.h"
+ //#include "samples/default.h"
+#include "samples/deferred.h"
 ///#include "samples/defered.h"
 //#include "samples/reflection.h"
 //#include "samples/sky.h"
 //#include "samples/geometryshader.h"
 //#include "samples/csm.h"
-#include "samples/ecs.h"
+//#include "samples/ecs.h"
 // 4+
 //#include "samples/tesselation.h"

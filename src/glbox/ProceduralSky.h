@@ -7,8 +7,6 @@
 #include <iostream>
 #include <string>
 
-// Pro zjednodušení a odstranění závislosti na externím cpp souboru
-// jsou členské funkce definovány inline (implicitně u definic v těle třídy).
 
 class ProceduralSky {
 public:
@@ -54,7 +52,7 @@ public:
         glBindVertexArray(m_skyVAO);
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        // 4. Obnoví stav OpenGL
+
         glBindVertexArray(0);
         glDepthMask(GL_TRUE); // Obnoví zápis do Z-bufferu pro zbytek scény
     }
@@ -63,7 +61,6 @@ private:
     unsigned int m_skyShader = 0;
     unsigned int m_skyVAO = 0;
 
-    // Zdrojový kód vertex shaderu
     const char *vertexShaderSource = R"(
     #version 330 core
     out vec2 v_clipSpace;
@@ -79,7 +76,6 @@ private:
     }
     )";
 
-    // Zdrojový kód fragment shaderu
     const char *fragmentShaderSource = R"(
     #version 330 core
 

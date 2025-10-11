@@ -212,6 +212,7 @@ void main(){}
 )GLSL";
 
 // ---------- data structures ----------
+
 struct VertexBoneData {
     int ids[4];
     float weights[4];
@@ -243,6 +244,9 @@ struct Mesh {
     GLuint texSmoothness=0;
 };
 
+///============================================================================================
+
+
 // ---------- ModelFBX class ----------
 class ModelFBX {
 
@@ -264,6 +268,10 @@ private:
     std::vector<BoneInfo> bones_;
     int currentAnimIndex_ = 0;
     bool animPlaying_ = true;
+
+    float loopStartTicks_ = 0.0f; // Počáteční čas v "ticích"
+    float loopEndTicks_ = 0.0f;   // Koncový čas v "ticích"
+    bool loopRangeActive_ = false; // Zda se má použít rozsah
 
 public:
     ModelFBX(const std::string& path, const std::string& vsSrc = kDefaultVS,const std::string& fsSrc = kDefaultFS,bool flipUVs = false)
@@ -291,6 +299,80 @@ public:
     void setFallbackMetallic(float v){ fallbackMetallic_ = v; }
     void setFallbackSmoothness(float v){ fallbackSmoothness_ = v; }
 
+    void setAlbedoTexture(GLuint textureID, size_t meshIndex) {
+        if (meshIndex < meshes_.size()) {
+            meshes_[meshIndex].texAlbedo = textureID;
+        } else {
+            std::cerr << "setAlbedoTexture: Neplatný index meshe: " << meshIndex << "\n";
+        }
+    }
+
+    void setNormalTexture(GLuint textureID, size_t meshIndex) {
+        if (meshIndex < meshes_.size()) {
+            meshes_[meshIndex].texNormal = textureID;
+        } else {
+            std::cerr << "setNormalTexture: Neplatný index meshe: " << meshIndex << "\n";
+        }
+    }
+
+    void setMetallicTexture(GLuint textureID, size_t meshIndex) {
+        if (meshIndex < meshes_.size()) {
+            meshes_[meshIndex].texMetallic = textureID;
+        } else {
+            std::cerr << "setMetallicTexture: Neplatný index meshe: " << meshIndex << "\n";
+        }
+    }
+
+    void setSmoothnessTexture(GLuint textureID, size_t meshIndex) {
+        if (meshIndex < meshes_.size()) {
+            meshes_[meshIndex].texSmoothness = textureID;
+        } else {
+            std::cerr << "setSmoothnessTexture: Neplatný index meshe: " << meshIndex << "\n";
+        }
+    }
+
+    size_t numMeshes() const {
+        return meshes_.size();
+    }
+
+    /** Vrací ID Albedo textury pro daný mesh. */
+    GLuint getAlbedoTexture(size_t meshIndex) const {
+        if (meshIndex < meshes_.size()) {
+            return meshes_[meshIndex].texAlbedo;
+        }
+        return 0;
+    }
+
+    void setAnimationLoopRange(float startTimeSec, float endTimeSec) {
+        if (!scene_ || scene_->mNumAnimations == 0 || currentAnimIndex_ < 0 || currentAnimIndex_ >= (int)scene_->mNumAnimations) {
+            std::cerr << "setAnimationLoopRange: Model neobsahuje animace nebo je neplatný index.\n";
+            loopRangeActive_ = false;
+            return;
+        }
+
+        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
+        float duration = (float)anim->mDuration;
+
+        // Převod sekund na Assimp "ticks"
+        loopStartTicks_ = startTimeSec * tps;
+        loopEndTicks_ = endTimeSec * tps;
+
+        // Kontrola platnosti rozsahu a délky animace
+        if (loopStartTicks_ >= loopEndTicks_ || loopEndTicks_ > duration || loopStartTicks_ < 0.0f) {
+            std::cerr << "setAnimationLoopRange: Neplatný rozsah: [" << startTimeSec << ", " << endTimeSec << "]. Používám celou animaci.\n";
+            loopRangeActive_ = false;
+            return;
+        }
+
+        loopRangeActive_ = true;
+        std::cout << "Nastaven rozsah animace (v sekundách): [" << startTimeSec << ", " << endTimeSec << "]\n";
+    }
+
+    // Metoda pro vypnutí smyčky v rozsahu a návrat k celé animaci
+    void disableAnimationLoopRange() {
+        loopRangeActive_ = false;
+    }
     // lighting
     void setLightProperties(const glm::vec3& lightPos,
                             const glm::vec3& lightColor,
@@ -332,7 +414,7 @@ public:
                 return;
             }
         }
-        std::cerr << "Animace '"<<name<<"' nenalezena\n";
+        std::cerr << "Animace '"<<name<<"' not found\n";
     }
     void stopAnimation(){ animPlaying_ = false; }
     int numAnimations() const { return scene_? scene_->mNumAnimations : 0; }
@@ -343,14 +425,11 @@ public:
 
     // call each frame with current time in seconds to update skeleton
     void updateAnimation(float timeSec){
-      //  if(!scene_ || scene_->mNumAnimations==0 || !animPlaying_) return;
         if(!scene_ || !animPlaying_ || scene_->mNumAnimations == 0){
-            // fallback: statický model, žádné animace
+            // stávající fallback pro neanimované modely nebo zastavenou animaci
             for(auto &b : bones_){
-                b.finalTransform = b.offset; // nebo glm::mat4(1.0f)
+                b.finalTransform = glm::mat4(1.0f); // Jednodušší identita pro statické (neanimované) kosti
             }
-
-            // pokud žádné kosti vůbec nejsou, vytvoř minimálně jednu
             if(bones_.empty()){
                 BoneInfo bi;
                 bi.finalTransform = glm::mat4(1.0f);
@@ -362,7 +441,23 @@ public:
         const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
         float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
         float ticks = timeSec * tps;
-        float animTime = fmod(ticks, (float)anim->mDuration);
+        float animTime;
+
+        if (loopRangeActive_) {
+            // --- NOVÁ LOGIKA PRO LOOP V ROZSAHU ---
+            float rangeDuration = loopEndTicks_ - loopStartTicks_;
+
+            // 1. Zjisti pozici v rámci rozsahu (cyklicky)
+            float ticksInRange = fmod(ticks - loopStartTicks_, rangeDuration);
+
+            // 2. Přesuň tuto pozici zpět na skutečnou pozici v rámci celé animace
+            animTime = loopStartTicks_ + ticksInRange;
+
+        } else {
+            // --- PŮVODNÍ LOGIKA PRO CELOU ANIMACI (cyklus od 0 po celou délku) ---
+            animTime = fmod(ticks, (float)anim->mDuration);
+        }
+
         readNodeHierarchy(animTime, scene_->mRootNode, glm::mat4(1.0f));
     }
     void prepareBonesFallback() {

@@ -28,13 +28,6 @@ public:
     unsigned int ID;
 
     Shader(const char *vertexPath, const char *fragmentPath) {
-        createProgram(vertexPath, fragmentPath);
-    }
-    ~Shader(){
-
-    }
-    void createProgram(const char *vertexPath,
-                       const char *fragmentPath){
         std::string vertexCode;
         std::string fragmentCode;
         std::ifstream vShaderFile;
@@ -77,23 +70,79 @@ public:
             std::cout << "CHYBA::SHADER::FRAGMENT::KOMPILACE_NEUSPESNA\n"
                       << infoLog << std::endl;
         };
-        unsigned int program = glCreateProgram();
-        glAttachShader(program, vertex);
-        glAttachShader(program, fragment);
-        glLinkProgram(program);
-        glGetProgramiv(program, GL_LINK_STATUS, &success);
-        if (!success) {
-            glGetProgramInfoLog(program, 512, NULL, infoLog);
-            std::cout << "CHYBA::PROGRAM::LINKOVANI_NEUSPESNE\n"
-                      << infoLog << std::endl;
+        ID = glCreateProgram();
+        glAttachShader(ID, vertex);
+        glAttachShader(ID, fragment);
+        glLinkProgram(ID);
+        glGetProgramiv(ID, GL_LINK_STATUS, &success);
+        if(!success) {
+            glGetProgramInfoLog(ID, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
         }
         glDeleteShader(vertex);
         glDeleteShader(fragment);
-        //return program;
-        ID = program;
     }
+    ~Shader(){
+
+    }
+    void createProgram(const char *vertexPath,
+                       const char *fragmentPath){
+
+        //return program;
+        //ID = program;
+    }
+    Shader(const char* vertexSource, const char* fragmentSource,bool st) {
+        unsigned int vertex, fragment;
+
+        const char* vShaderCode = vertexSource;
+        const char* fShaderCode = fragmentSource;
+
+        vertex = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertex, 1, &vShaderCode, NULL);
+        glCompileShader(vertex);
 
 
+        fragment = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragment, 1, &fShaderCode, NULL);
+        glCompileShader(fragment);
+        int success;
+        char infoLog[512];
+        glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
+
+        if(!success) {
+            glGetShaderInfoLog(vertex, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+        glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
+        if(!success) {
+            glGetShaderInfoLog(fragment, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+
+        ID = glCreateProgram();
+        glAttachShader(ID, vertex);
+        glAttachShader(ID, fragment);
+        glLinkProgram(ID);
+        glGetProgramiv(ID, GL_LINK_STATUS, &success);
+        if(!success) {
+            glGetProgramInfoLog(ID, 512, NULL, infoLog);
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+        }
+        glDeleteShader(vertex);
+        glDeleteShader(fragment);
+    }
+    void use() {
+        glUseProgram(ID);
+    }
+    void setMat4(const std::string &name, const glm::mat4 &mat) const {
+        glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
+    }
+    void setVec3(const std::string &name, const glm::vec3 &value) const {
+        glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
+    }
+    void setInt(const std::string &name, int value) const {
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
+    }
 
 private:
 };

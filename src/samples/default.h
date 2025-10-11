@@ -164,7 +164,19 @@ int main() {
     Sphere sphereRight;
     Sphere sphereCenter;
 
-    ModelFBX model("assets/models/grenade/untitled.fbx");
+    ModelFBX model("assets/models/Player/Player.fbx");
+
+    GLuint myAlbedoTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
+    GLuint myNormalTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
+    GLuint myMetallicTex =Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
+    GLuint mySmoothnessTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
+
+    // Ruční nastavení textur pro model:
+    model.setAlbedoTexture(myAlbedoTex,0);
+    model.setNormalTexture(myNormalTex,0);
+    model.setMetallicTexture(myMetallicTex,0);
+    model.setAlbedoTexture(mySmoothnessTex,1);
+   // ModelFBX model("assets/models/grenade/untitled.fbx");
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model.setFallbackMetallic(0.1f);
     model.setFallbackSmoothness(0.3f);
@@ -179,11 +191,12 @@ int main() {
     model1.transform.position = glm::vec3(-6.0f, -0.5f, -5.0f);
     model1.transform.rotation = glm::vec3(90.0f, 180.0f, 180.0f);
     model1.transform.scale    = glm::vec3(0.5f);
+    model1.setAlbedoTexture(myAlbedoTex,1);
 
-    for(int i=0;i<model1.numAnimations();++i) std::cout << i << " anim " <<model1.animationName(i)  << std::endl;
+    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
     //model1.stopAnimation();
    // model.stopAnimation();
-    //model.playAnimationByName(\"Run");
+ //   model.playAnimationByIndex(1);
     //model.stopAnimation();
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
@@ -290,8 +303,11 @@ int main() {
         glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
+      //  model.playAnimationByIndex(0);
+        model.setAnimationLoopRange(3.5f, 3.55f);
         model.updateAnimation(t);
        // model1.updateAnimation(t);
+        model.disableAnimationLoopRange();
         //============================================================================draw geometry
         glm::mat4 invProjection = glm::inverse(projection);
         glm::mat4 invView = glm::inverse(view);
@@ -345,8 +361,6 @@ int main() {
             0.0f    // IOR (pro kovy se nepoužívá)
             );
         sphereRight.draw(modelB, view, projection, camera.Position, sky.getCubemapTexture(), depthMap, lightSpaceMatrix, lightDir);
-
-
 
         // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ ---
         glDepthMask(GL_FALSE); // NOVÁ ZMĚNA

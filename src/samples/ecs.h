@@ -174,7 +174,6 @@ public:
     EntityID createEntity() {
         EntityID id = nextID++;
         entities.push_back(id);
-
         positions.emplace_back();
         rotations.emplace_back();
         velocities.emplace_back();

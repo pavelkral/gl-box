@@ -1,7 +1,6 @@
 #ifndef CSM_H
 #define CSM_H
-// main.cpp
-// Funkční příklad: podlaha + krychle + směrové světlo + FPS kamera + shadow mapz
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -136,7 +135,10 @@ void main(){
 )glsl";
 
 // ---------- Mesh helpers ----------
-struct Mesh{ GLuint VAO,VBO,EBO; GLsizei idxCount; };
+struct Mesh{
+    GLuint VAO,VBO,EBO;
+    GLsizei idxCount;
+};
 
 Mesh createCube(){
     float vertices[] = {
@@ -209,7 +211,9 @@ bool keys[1024];
 float deltaTime=0,lastFrame=0;
 double lastX=SCR_WIDTH/2, lastY=SCR_HEIGHT/2;
 bool firstMouse=true;
+
 void key_callback(GLFWwindow* w,int k,int s,int a,int m){if(k>=0&&k<1024){if(a==GLFW_PRESS) keys[k]=true;if(a==GLFW_RELEASE) keys[k]=false;}}
+
 void mouse_callback(GLFWwindow* w,double xpos,double ypos){
     if(firstMouse){lastX=xpos;lastY=ypos;firstMouse=false;}
     double xoffset=xpos-lastX, yoffset=lastY-ypos;
@@ -219,6 +223,7 @@ void mouse_callback(GLFWwindow* w,double xpos,double ypos){
     if(camera.Pitch>89.f) camera.Pitch=89.f;
     if(camera.Pitch<-89.f) camera.Pitch=-89.f;
 }
+
 void processInput(float dt){
     glm::vec3 front=camera.Front();
     glm::vec3 right=glm::normalize(glm::cross(front,glm::vec3(0,1,0)));
