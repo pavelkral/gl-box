@@ -1,12 +1,11 @@
 #ifndef TESSELATION_H
 #define TESSELATION_H
-#include <iostream>
-#include <vector>
-#include <cmath>
 
+#include <iostream>
+//#include <vector>
+#include <cmath>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

@@ -1,8 +1,9 @@
 #ifndef REFLECTION_H
 #define REFLECTION_H
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+
+//#include "imgui.h"
+//#include "imgui_impl_glfw.h"
+//#include "imgui_impl_opengl3.h"
 #include "stb_image.h"
 #include <glad/glad.h>
 #include <glfw/glfw3.h>

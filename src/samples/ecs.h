@@ -3,9 +3,9 @@
 
 #include <iostream>
 #include <vector>
-#include <algorithm>
+//#include <algorithm>
 #include <cmath>
-#include <numeric>
+//#include <numeric>
 #include <cstdlib>
 #include <ctime>
 

@@ -12,9 +12,9 @@
 class StaticMesh {
 
 public:
+
     unsigned int VAO, VBO, EBO;
     unsigned int vertexCount;
-
 
     std::vector<unsigned int> indices;
     std::vector<float> vertices;
