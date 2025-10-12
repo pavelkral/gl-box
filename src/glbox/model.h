@@ -1,6 +1,4 @@
 #pragma once
-
-#include "Transform.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
@@ -8,22 +6,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#ifndef aiTextureType_BASE_COLOR
-#define aiTextureType_BASE_COLOR aiTextureType_DIFFUSE
-#endif
-
-#ifndef aiTextureType_METALNESS
-#define aiTextureType_METALNESS aiTextureType_UNKNOWN
-#endif
-
-#ifndef aiTextureType_DIFFUSE_ROUGHNESS
-#define aiTextureType_DIFFUSE_ROUGHNESS aiTextureType_UNKNOWN
-#endif
-
-#ifndef aiTextureType_SHININESS
-#define aiTextureType_SHININESS aiTextureType_SPECULAR
-#endif
-#define GLM_ENABLE_EXPERIMENTAL
+ #define GLM_ENABLE_EXPERIMENTAL
 
 //#include <glm/gtx/component_wise.hpp>
 #include <glm/glm.hpp>
@@ -38,6 +21,7 @@
 #include <filesystem>
 #include <iostream>
 #include <algorithm>
+#include "Transform.h"
 
 static const int MAX_BONES = 100;
 
@@ -238,6 +222,7 @@ struct Mesh {
     GLuint vao=0, vbo=0, ebo=0;
     GLuint boneVBO = 0;
     GLsizei indexCount=0;
+
     GLuint texAlbedo=0;
     GLuint texNormal=0;
     GLuint texMetallic=0;
@@ -343,123 +328,7 @@ public:
         return 0;
     }
 
-    void setAnimationLoopRange(float startTimeSec, float endTimeSec) {
-        if (!scene_ || scene_->mNumAnimations == 0 || currentAnimIndex_ < 0 || currentAnimIndex_ >= (int)scene_->mNumAnimations) {
-            std::cerr << "setAnimationLoopRange: Model neobsahuje animace nebo je neplatný index.\n";
-            loopRangeActive_ = false;
-            return;
-        }
 
-        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
-        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
-        float duration = (float)anim->mDuration;
-
-        // Převod sekund na Assimp "ticks"
-        loopStartTicks_ = startTimeSec * tps;
-        loopEndTicks_ = endTimeSec * tps;
-
-        // Kontrola platnosti rozsahu a délky animace
-        if (loopStartTicks_ >= loopEndTicks_ || loopEndTicks_ > duration || loopStartTicks_ < 0.0f) {
-            std::cerr << "setAnimationLoopRange: Neplatný rozsah: [" << startTimeSec << ", " << endTimeSec << "]. Používám celou animaci.\n";
-            loopRangeActive_ = false;
-            return;
-        }
-
-        loopRangeActive_ = true;
-        std::cout << "Nastaven rozsah animace (v sekundách): [" << startTimeSec << ", " << endTimeSec << "]\n";
-    }
-
-    // Metoda pro vypnutí smyčky v rozsahu a návrat k celé animaci
-    void disableAnimationLoopRange() {
-        loopRangeActive_ = false;
-    }
-    // lighting
-    void setLightProperties(const glm::vec3& lightPos,
-                            const glm::vec3& lightColor,
-                            float ambientStrength,
-                            const glm::vec3& cameraPos)
-    {
-        glUseProgram(program_);
-        glUniform3fv(glGetUniformLocation(program_, "uLightPos"), 1, glm::value_ptr(lightPos));
-        glUniform3fv(glGetUniformLocation(program_, "uLightColor"), 1, glm::value_ptr(lightColor));
-        glUniform1f(glGetUniformLocation(program_, "uAmbientStrength"), ambientStrength);
-        glUniform3fv(glGetUniformLocation(program_, "uCameraPos"), 1, glm::value_ptr(cameraPos));
-        glUseProgram(0);
-    }
-
-    // --- animation control ---
-    void playAnimationByIndex(int idx) {
-        if (!scene_ || idx < 0 || idx >= (int)scene_->mNumAnimations) {
-            std::cerr << "playAnimationByIndex: invalid index " << idx << "\n";
-            return;
-        }
-
-        currentAnimIndex_ = idx;
-        animPlaying_ = true;
-
-        const aiAnimation* anim = scene_->mAnimations[idx];
-        std::cout << "Playing animation index " << idx << " with "
-                  << anim->mNumChannels << " channels:\n";
-        for (unsigned i = 0; i < anim->mNumChannels; i++) {
-            std::cout << "  Channel[" << i << "]: "
-                      << anim->mChannels[i]->mNodeName.C_Str() << "\n";
-        }
-    }
-    void playAnimationByName(const std::string& name) {
-        if(!scene_) return;
-        for(unsigned i=0;i<scene_->mNumAnimations;i++){
-            if(name == scene_->mAnimations[i]->mName.C_Str()){
-                currentAnimIndex_ = i;
-                animPlaying_ = true;
-                return;
-            }
-        }
-        std::cerr << "Animace '"<<name<<"' not found\n";
-    }
-    void stopAnimation(){ animPlaying_ = false; }
-    int numAnimations() const { return scene_? scene_->mNumAnimations : 0; }
-    std::string animationName(int idx) const {
-        if(!scene_||idx<0||idx>=(int)scene_->mNumAnimations) return "";
-        return scene_->mAnimations[idx]->mName.C_Str();
-    }
-
-    // call each frame with current time in seconds to update skeleton
-    void updateAnimation(float timeSec){
-        if(!scene_ || !animPlaying_ || scene_->mNumAnimations == 0){
-            // stávající fallback pro neanimované modely nebo zastavenou animaci
-            for(auto &b : bones_){
-                b.finalTransform = glm::mat4(1.0f); // Jednodušší identita pro statické (neanimované) kosti
-            }
-            if(bones_.empty()){
-                BoneInfo bi;
-                bi.finalTransform = glm::mat4(1.0f);
-                bones_.push_back(bi);
-            }
-            return;
-        }
-
-        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
-        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
-        float ticks = timeSec * tps;
-        float animTime;
-
-        if (loopRangeActive_) {
-            // --- NOVÁ LOGIKA PRO LOOP V ROZSAHU ---
-            float rangeDuration = loopEndTicks_ - loopStartTicks_;
-
-            // 1. Zjisti pozici v rámci rozsahu (cyklicky)
-            float ticksInRange = fmod(ticks - loopStartTicks_, rangeDuration);
-
-            // 2. Přesuň tuto pozici zpět na skutečnou pozici v rámci celé animace
-            animTime = loopStartTicks_ + ticksInRange;
-
-        } else {
-            // --- PŮVODNÍ LOGIKA PRO CELOU ANIMACI (cyklus od 0 po celou délku) ---
-            animTime = fmod(ticks, (float)anim->mDuration);
-        }
-
-        readNodeHierarchy(animTime, scene_->mRootNode, glm::mat4(1.0f));
-    }
     void prepareBonesFallback() {
         if(bones_.empty()) {
             // Přidáme jednu "kost" s identitou
@@ -764,7 +633,127 @@ private:
         cacheTextures_[file] = tex;
         return tex;
     }
+    //===================================================anim
 
+    public:
+
+    void setAnimationLoopRange(float startTimeSec, float endTimeSec) {
+        if (!scene_ || scene_->mNumAnimations == 0 || currentAnimIndex_ < 0 || currentAnimIndex_ >= (int)scene_->mNumAnimations) {
+            std::cerr << "setAnimationLoopRange: Model neobsahuje animace nebo je neplatny index.\n";
+            loopRangeActive_ = false;
+            return;
+        }
+
+        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
+        float duration = (float)anim->mDuration;
+
+        // Převod sekund na Assimp "ticks"
+        loopStartTicks_ = startTimeSec * tps;
+        loopEndTicks_ = endTimeSec * tps;
+
+        // Kontrola platnosti rozsahu a délky animace
+        if (loopStartTicks_ >= loopEndTicks_ || loopEndTicks_ > duration || loopStartTicks_ < 0.0f) {
+            std::cerr << "setAnimationLoopRange: Neplatny rozsah: [" << startTimeSec << ", " << endTimeSec << "]. Používám celou animaci.\n";
+            loopRangeActive_ = false;
+            return;
+        }
+
+        loopRangeActive_ = true;
+        std::cout << "Nastaven rozsah animace (in s): [" << startTimeSec << ", " << endTimeSec << "]\n";
+    }
+
+    // Metoda pro vypnutí smyčky v rozsahu a návrat k celé animaci
+    void disableAnimationLoopRange() {
+        loopRangeActive_ = false;
+    }
+    // lighting
+    void setLightProperties(const glm::vec3& lightPos,
+                            const glm::vec3& lightColor,
+                            float ambientStrength,
+                            const glm::vec3& cameraPos)
+    {
+        glUseProgram(program_);
+        glUniform3fv(glGetUniformLocation(program_, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(program_, "uLightColor"), 1, glm::value_ptr(lightColor));
+        glUniform1f(glGetUniformLocation(program_, "uAmbientStrength"), ambientStrength);
+        glUniform3fv(glGetUniformLocation(program_, "uCameraPos"), 1, glm::value_ptr(cameraPos));
+        glUseProgram(0);
+    }
+
+    // --- animation control ---
+    void playAnimationByIndex(int idx) {
+        if (!scene_ || idx < 0 || idx >= (int)scene_->mNumAnimations) {
+            std::cerr << "playAnimationByIndex: invalid index " << idx << "\n";
+            return;
+        }
+
+        currentAnimIndex_ = idx;
+        animPlaying_ = true;
+
+        const aiAnimation* anim = scene_->mAnimations[idx];
+        std::cout << "Playing animation index " << idx << " with "
+                  << anim->mNumChannels << " channels:\n";
+        for (unsigned i = 0; i < anim->mNumChannels; i++) {
+            std::cout << "  Channel[" << i << "]: "
+                      << anim->mChannels[i]->mNodeName.C_Str() << "\n";
+        }
+    }
+    void playAnimationByName(const std::string& name) {
+        if(!scene_) return;
+        for(unsigned i=0;i<scene_->mNumAnimations;i++){
+            if(name == scene_->mAnimations[i]->mName.C_Str()){
+                currentAnimIndex_ = i;
+                animPlaying_ = true;
+                return;
+            }
+        }
+        std::cerr << "Animace '"<<name<<"' not found\n";
+    }
+    void stopAnimation(){ animPlaying_ = false; }
+    int numAnimations() const { return scene_? scene_->mNumAnimations : 0; }
+    std::string animationName(int idx) const {
+        if(!scene_||idx<0||idx>=(int)scene_->mNumAnimations) return "";
+        return scene_->mAnimations[idx]->mName.C_Str();
+    }
+
+    // call each frame with current time in seconds to update skeleton
+    void updateAnimation(float timeSec){
+        if(!scene_ || !animPlaying_ || scene_->mNumAnimations == 0){
+            // stávající fallback pro neanimované modely nebo zastavenou animaci
+            for(auto &b : bones_){
+                b.finalTransform = glm::mat4(1.0f); // Jednodušší identita pro statické (neanimované) kosti
+            }
+            if(bones_.empty()){
+                BoneInfo bi;
+                bi.finalTransform = glm::mat4(1.0f);
+                bones_.push_back(bi);
+            }
+            return;
+        }
+
+        const aiAnimation* anim = scene_->mAnimations[currentAnimIndex_];
+        float tps = (anim->mTicksPerSecond != 0.0f) ? (float)anim->mTicksPerSecond : 25.0f;
+        float ticks = timeSec * tps;
+        float animTime;
+
+        if (loopRangeActive_) {
+            // --- NOVÁ LOGIKA PRO LOOP V ROZSAHU ---
+            float rangeDuration = loopEndTicks_ - loopStartTicks_;
+
+            // 1. Zjisti pozici v rámci rozsahu (cyklicky)
+            float ticksInRange = fmod(ticks - loopStartTicks_, rangeDuration);
+
+            // 2. Přesuň tuto pozici zpět na skutečnou pozici v rámci celé animace
+            animTime = loopStartTicks_ + ticksInRange;
+
+        } else {
+            // --- PŮVODNÍ LOGIKA PRO CELOU ANIMACI (cyklus od 0 po celou délku) ---
+            animTime = fmod(ticks, (float)anim->mDuration);
+        }
+
+        readNodeHierarchy(animTime, scene_->mRootNode, glm::mat4(1.0f));
+    }
     // ---------- math helpers for animation ----------
     static glm::mat4 aiMatToGlm(const aiMatrix4x4& m) {
         glm::mat4 out;
