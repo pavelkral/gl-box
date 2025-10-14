@@ -5,63 +5,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
-//#include <string>
 
 
-class ProceduralSky {
-public:
-
-    bool Setup() {
-        m_skyShader = compile_shaders(vertexShaderSource, fragmentShaderSource);
-
-        if (m_skyShader == 0) {
-            std::cerr << "Nepodarilo se zkompilovat Skydome shadery." << std::endl;
-            return false;
-        }
-
-        // Vytvoření VAO. Protože geometrie je generována ve vertex shaderu pomocí
-        // gl_VertexID, nepotřebujeme VBO, ale VAO je stále nutné.
-        glGenVertexArrays(1, &m_skyVAO);
-        glBindVertexArray(m_skyVAO);
-        // Odpojení VAO
-        glBindVertexArray(0);
-
-        return true;
-    }
-    ~ProceduralSky() {
-        glDeleteVertexArrays(1, &m_skyVAO);
-       // glDeleteBuffers(1, &VBO);
-       // glDeleteBuffers(1, &EBO); //  EBO!
-    }
-    // Vykreslí skydome. Měla by být volána s GL_FALSE pro glDepthMask.
-    void Draw(const glm::mat4 &invView, const glm::mat4 &invProjection,
-              const glm::vec3 &sunDirection) {
-        // 1. Nastaví stav OpenGL
-        glDepthMask(GL_FALSE); // Ignoruje zápis do Z-bufferu (důležité pro
-        // nekonečnou oblohu)
-        glUseProgram(m_skyShader);
-
-
-        glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniProjekce"),
-                           1, GL_FALSE, glm::value_ptr(invProjection));
-        glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniPohled"), 1,
-                           GL_FALSE, glm::value_ptr(invView));
-        glUniform3fv(glGetUniformLocation(m_skyShader, "u_sunDirection"), 1,
-                     glm::value_ptr(sunDirection));
-
-        glBindVertexArray(m_skyVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
-
-        glBindVertexArray(0);
-        glDepthMask(GL_TRUE); // Obnoví zápis do Z-bufferu pro zbytek scény
-    }
-
-private:
-    unsigned int m_skyShader = 0;
-    unsigned int m_skyVAO = 0;
-
-    const char *vertexShaderSource = R"(
+const char *vertexShaderSource = R"(
     #version 330 core
     out vec2 v_clipSpace;
 
@@ -76,7 +22,7 @@ private:
     }
     )";
 
-    const char *fragmentShaderSource = R"(
+const char *fragmentShaderSource = R"(
     #version 330 core
 
     in vec2 v_clipSpace;
@@ -132,6 +78,58 @@ private:
     }
     )";
 
+class ProceduralSky {
+public:
+
+    bool Setup() {
+        m_skyShader = compile_shaders(vertexShaderSource, fragmentShaderSource);
+
+        if (m_skyShader == 0) {
+            std::cerr << "Nepodarilo se zkompilovat Skydome shadery." << std::endl;
+            return false;
+        }
+
+        // Vytvoření VAO. Protože geometrie je generována ve vertex shaderu pomocí
+        // gl_VertexID, nepotřebujeme VBO, ale VAO je stále nutné.
+        glGenVertexArrays(1, &m_skyVAO);
+        glBindVertexArray(m_skyVAO);
+        // Odpojení VAO
+        glBindVertexArray(0);
+
+        return true;
+    }
+    ~ProceduralSky() {
+        glDeleteVertexArrays(1, &m_skyVAO);
+       // glDeleteBuffers(1, &VBO);
+       // glDeleteBuffers(1, &EBO); //  EBO!
+    }
+    // Vykreslí skydome. Měla by být volána s GL_FALSE pro glDepthMask.
+    void Draw(const glm::mat4 &invView, const glm::mat4 &invProjection,
+              const glm::vec3 &sunDirection) {
+        // 1. Nastaví stav OpenGL
+        glDepthMask(GL_FALSE); // Ignoruje zápis do Z-bufferu (důležité pro
+        // nekonečnou oblohu)
+        glUseProgram(m_skyShader);
+
+
+        glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniProjekce"),
+                           1, GL_FALSE, glm::value_ptr(invProjection));
+        glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniPohled"), 1,
+                           GL_FALSE, glm::value_ptr(invView));
+        glUniform3fv(glGetUniformLocation(m_skyShader, "u_sunDirection"), 1,
+                     glm::value_ptr(sunDirection));
+
+        glBindVertexArray(m_skyVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+
+        glBindVertexArray(0);
+        glDepthMask(GL_TRUE); // Obnoví zápis do Z-bufferu pro zbytek scény
+    }
+
+private:
+    unsigned int m_skyShader = 0;
+    unsigned int m_skyVAO = 0;
 
     unsigned int compile_shaders(const char *vertSource, const char *fragSource) {
         unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -165,4 +163,5 @@ private:
         return shaderProgram;
     }
 };
+
 #endif // PROCEDURALSKY_H

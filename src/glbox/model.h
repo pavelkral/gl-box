@@ -23,37 +23,6 @@
 #include <algorithm>
 #include "Transform.h"
 
-static const int MAX_BONES = 100;
-
-// ---------- shader helpers ----------
-static GLuint compileShader(GLenum type, const char* src){
-    GLuint s = glCreateShader(type);
-    glShaderSource(s, 1, &src, nullptr);
-    glCompileShader(s);
-    GLint ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if(!ok){
-        GLint len=0; glGetShaderiv(s, GL_INFO_LOG_LENGTH, &len);
-        std::string log(len,'\0'); glGetShaderInfoLog(s,len,nullptr,log.data());
-        std::cerr << "Shader compile error (" << (type==GL_VERTEX_SHADER?"VS":"FS") << "):\n" << log << std::endl;
-    }
-    return s;
-}
-
-static GLuint linkProgram(GLuint vs, GLuint fs){
-    GLuint p = glCreateProgram();
-    glAttachShader(p, vs); glAttachShader(p, fs);
-    glLinkProgram(p);
-    GLint ok=0; glGetProgramiv(p, GL_LINK_STATUS, &ok);
-    if(!ok){
-        GLint len=0; glGetProgramiv(p, GL_INFO_LOG_LENGTH, &len);
-        std::string log(len,'\0'); glGetProgramInfoLog(p,len,nullptr,log.data());
-        std::cerr << "Program link error:\n" << log << std::endl;
-    }
-    glDetachShader(p,vs); glDetachShader(p,fs);
-    glDeleteShader(vs); glDeleteShader(fs);
-    return p;
-}
-
 // ---------- shaders (main skinning VS + lighting FS) ----------
 static const char* kDefaultVS = R"GLSL(
 #version 330 core
@@ -194,6 +163,37 @@ static const char* kDepthFS = R"GLSL(
 #version 330 core
 void main(){}
 )GLSL";
+
+
+static const int MAX_BONES = 100;
+
+static GLuint compileShader(GLenum type, const char* src){
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, nullptr);
+    glCompileShader(s);
+    GLint ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if(!ok){
+        GLint len=0; glGetShaderiv(s, GL_INFO_LOG_LENGTH, &len);
+        std::string log(len,'\0'); glGetShaderInfoLog(s,len,nullptr,log.data());
+        std::cerr << "Shader compile error (" << (type==GL_VERTEX_SHADER?"VS":"FS") << "):\n" << log << std::endl;
+    }
+    return s;
+}
+
+static GLuint linkProgram(GLuint vs, GLuint fs){
+    GLuint p = glCreateProgram();
+    glAttachShader(p, vs); glAttachShader(p, fs);
+    glLinkProgram(p);
+    GLint ok=0; glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    if(!ok){
+        GLint len=0; glGetProgramiv(p, GL_INFO_LOG_LENGTH, &len);
+        std::string log(len,'\0'); glGetProgramInfoLog(p,len,nullptr,log.data());
+        std::cerr << "Program link error:\n" << log << std::endl;
+    }
+    glDetachShader(p,vs); glDetachShader(p,fs);
+    glDeleteShader(vs); glDeleteShader(fs);
+    return p;
+}
 
 // ---------- data structures ----------
 
@@ -559,12 +559,12 @@ private:
         if(mesh->HasTextureCoords(0)) {
             for(int i = 0; i < std::min<unsigned>(3, mesh->mNumVertices); i++) {
                 auto uv = mesh->mTextureCoords[0][i];
-                std::cout << "UV[" << i << "] = (" << uv.x << ", " << uv.y << ")\n";
+               // std::cout << "UV[" << i << "] = (" << uv.x << ", " << uv.y << ")\n";
             }
         } else {
-            std::cout << "Mesh has NO UVs\n";
+            //std::cout << "Mesh has NO UVs\n";
         }
-        std::cout << "Mesh has " << mesh->GetNumUVChannels() << " UV channels\n";
+        //std::cout << "Mesh has " << mesh->GetNumUVChannels() << " UV channels\n";
         return out;
     }
 
@@ -654,13 +654,13 @@ private:
 
         // Kontrola platnosti rozsahu a délky animace
         if (loopStartTicks_ >= loopEndTicks_ || loopEndTicks_ > duration || loopStartTicks_ < 0.0f) {
-            std::cerr << "setAnimationLoopRange: Neplatny rozsah: [" << startTimeSec << ", " << endTimeSec << "]. Používám celou animaci.\n";
+            std::cerr << "setAnimationLoopRange: bad range: [" << startTimeSec << ", " << endTimeSec << "]. Používám celou animaci.\n";
             loopRangeActive_ = false;
             return;
         }
 
         loopRangeActive_ = true;
-        std::cout << "Nastaven rozsah animace (in s): [" << startTimeSec << ", " << endTimeSec << "]\n";
+       // std::cout << "range anim (in s): [" << startTimeSec << ", " << endTimeSec << "]\n";
     }
 
     // Metoda pro vypnutí smyčky v rozsahu a návrat k celé animaci

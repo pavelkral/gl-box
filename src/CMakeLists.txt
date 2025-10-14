@@ -64,8 +64,8 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Model.h
     glbox/Camera.h
     glbox/Shader.h
-    glbox/geometry/CubeMesh.h
-    glbox/geometry/PlaneMesh.h
+
+
     glbox/Texture.h
     glbox/ProceduralSky.h
     glbox/TexturedSky.h
@@ -87,6 +87,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/geometryshader.h
     samples/ecs.h
     samples/tesselation.h
+    glbox/geometry/Geometry.h
 )
 
 if(WIN32)

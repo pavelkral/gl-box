@@ -8,45 +8,7 @@
 #include <cmath>
 #include <iostream>
 
-class Sphere
-{
-private:
-    unsigned int shaderProgram;
-    unsigned int VAO, VBO, EBO;
-    unsigned int indexCount;
-
-    static const char* vertexShaderSrc;
-    static const char* fragmentShaderSrc;
-
-    void initGeometry();
-    static unsigned int createShader(const char* vs, const char* fs);
-
-public:
-    // Vlastnosti materiálu
-    glm::vec3 color;
-    float alpha;
-    float metallic;
-    float roughness;
-    float ao;
-    float reflectionStrength;
-    float transmission; // 0 = neprůhledný, 1 = průhledný (sklo)
-    float ior;          // Index lomu světla (Index of Refraction)
-
-    Sphere();
-    ~Sphere();
-
-    void setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl = 1.0f, float trans = 0.0f, float indexOfRefraction = 1.52f);
-
-    void draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj,
-              const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
-              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir) const;
-
-    void drawForShadow(unsigned int depthShader, const glm::mat4& model, const glm::mat4& lightSpaceMatrix) const;
-};
-
-// ---------------- SHADERY ----------------
-
-const char* Sphere::vertexShaderSrc = R"glsl(
+const char* vertexShaderSrc = R"glsl(
 #version 330 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
@@ -69,7 +31,7 @@ void main()
 }
 )glsl";
 
-const char* Sphere::fragmentShaderSrc = R"glsl(
+const char* fragmentShaderSrc = R"glsl(
 #version 330 core
 out vec4 FragColor;
 
@@ -207,7 +169,40 @@ void main()
 }
 )glsl";
 
-// ---------------- IMPLEMENTACE ----------------
+
+class Sphere
+{
+private:
+    unsigned int shaderProgram;
+    unsigned int VAO, VBO, EBO;
+    unsigned int indexCount;
+
+    void initGeometry();
+    static unsigned int createShader(const char* vs, const char* fs);
+
+public:
+
+    glm::vec3 color;
+    float alpha;
+    float metallic;
+    float roughness;
+    float ao;
+    float reflectionStrength;
+    float transmission; // 0 = neprůhledný, 1 = průhledný (sklo)
+    float ior;          // Index lomu světla (Index of Refraction)
+
+    Sphere();
+    ~Sphere();
+
+    void setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl = 1.0f, float trans = 0.0f, float indexOfRefraction = 1.52f);
+
+    void draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& proj,
+              const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
+              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir) const;
+
+    void drawForShadow(unsigned int depthShader, const glm::mat4& model, const glm::mat4& lightSpaceMatrix) const;
+};
+
 
 inline Sphere::Sphere(){
     shaderProgram = createShader(vertexShaderSrc,fragmentShaderSrc);
@@ -273,15 +268,31 @@ inline void Sphere::initGeometry(){
 }
 
 inline unsigned int Sphere::createShader(const char* vs,const char* fs){
-    unsigned int vertex=glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex,1,&vs,NULL); glCompileShader(vertex);
-    int success; char info[512]; glGetShaderiv(vertex,GL_COMPILE_STATUS,&success);
-    if(!success){ glGetShaderInfoLog(vertex,512,NULL,info); std::cout<<"VS: "<<info<<"\n"; }
-    unsigned int frag=glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(frag,1,&fs,NULL); glCompileShader(frag);
+    unsigned int vertex=glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex,1,&vs,NULL); glCompileShader(vertex);
+    int success;
+    char info[512];
+    glGetShaderiv(vertex,GL_COMPILE_STATUS,&success);
+    if(!success){
+        glGetShaderInfoLog(vertex,512,NULL,info);
+        std::cout<<"VS: "<<info<<"\n";
+    }
+    unsigned int frag=glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(frag,1,&fs,NULL); glCompileShader(frag);
     glGetShaderiv(frag,GL_COMPILE_STATUS,&success);
-    if(!success){ glGetShaderInfoLog(frag,512,NULL,info); std::cout<<"FS: "<<info<<"\n"; }
-    unsigned int program=glCreateProgram(); glAttachShader(program,vertex); glAttachShader(program,frag); glLinkProgram(program);
+    if(!success){
+        glGetShaderInfoLog(frag,512,NULL,info);
+        std::cout<<"FS: "<<info<<"\n";
+    }
+    unsigned int program=glCreateProgram();
+    glAttachShader(program,vertex);
+    glAttachShader(program,frag);
+    glLinkProgram(program);
     glGetProgramiv(program,GL_LINK_STATUS,&success);
-    if(!success){ glGetProgramInfoLog(program,512,NULL,info); std::cout<<"Link: "<<info<<"\n"; }
+    if(!success){
+        glGetProgramInfoLog(program,512,NULL,info);
+        std::cout<<"Link: "<<info<<"\n";
+    }
     glDeleteShader(vertex); glDeleteShader(frag);
     return program;
 }

@@ -10,38 +10,8 @@
 #include <string>
 #include "stb_image.h"
 
-class HdriSky
-{
-private:
-    unsigned int skyboxShader;
-    unsigned int envCubemap;
-    unsigned int equirectToCubemapShader;
 
-    static unsigned int cubeVAO, cubeVBO;
-
-    static const char* equirectToCubemapVS;
-    static const char* equirectToCubemapFS;
-    static const char* skyboxVS;
-    static const char* skyboxFS;
-    // ------------------------------------------
-
-    static unsigned int createShader(const char* vs, const char* fs);
-    static void renderCube();
-
-public:
-    HdriSky() : skyboxShader(0), envCubemap(0), equirectToCubemapShader(0) {}
-
-    void init(const std::string& hdrPath);
-    void draw(const glm::mat4& view, const glm::mat4& projection) const;
-    unsigned int getCubemapTexture() const { return envCubemap; }
-};
-
-
-unsigned int HdriSky::cubeVAO = 0;
-unsigned int HdriSky::cubeVBO = 0;
-
-
-const char* HdriSky::equirectToCubemapVS = R"glsl(
+const char* equirectToCubemapVS = R"glsl(
 #version 330 core
 layout (location = 0) in vec3 aPos;
 out vec3 WorldPos;
@@ -54,7 +24,7 @@ void main()
 }
 )glsl";
 
-const char* HdriSky::equirectToCubemapFS = R"glsl(
+const char* equirectToCubemapFS = R"glsl(
 #version 330 core
 out vec4 FragColor;
 in vec3 WorldPos;
@@ -74,7 +44,7 @@ void main()
 }
 )glsl";
 
-const char* HdriSky::skyboxVS = R"glsl(
+const char* skyboxVS = R"glsl(
 #version 330 core
 layout (location = 0) in vec3 aPos;
 out vec3 TexCoords;
@@ -88,7 +58,7 @@ void main()
 }
 )glsl";
 
-const char* HdriSky::skyboxFS = R"glsl(
+const char* skyboxFS = R"glsl(
 #version 330 core
 out vec4 FragColor;
 in vec3 TexCoords;
@@ -103,16 +73,51 @@ void main()
 }
 )glsl";
 
+
+class HdriSky
+{
+
+private:
+
+    unsigned int skyboxShader;
+    unsigned int envCubemap;
+    unsigned int equirectToCubemapShader;
+    static unsigned int cubeVAO, cubeVBO;
+    static unsigned int createShader(const char* vs, const char* fs);
+    static void renderCube();
+
+
+public:
+
+    HdriSky() : skyboxShader(0), envCubemap(0), equirectToCubemapShader(0) {}
+
+    void init(const std::string& hdrPath);
+    void draw(const glm::mat4& view, const glm::mat4& projection) const;
+    unsigned int getCubeMap() const { return envCubemap; }
+};
+
+
+unsigned int HdriSky::cubeVAO = 0;
+unsigned int HdriSky::cubeVBO = 0;
+
+
 inline unsigned int HdriSky::createShader(const char* vs, const char* fs)
 {
-    unsigned int vertex = glCreateShader(GL_VERTEX_SHADER); glShaderSource(vertex, 1, &vs, NULL); glCompileShader(vertex);
-    int success; char info[512]; glGetShaderiv(vertex, GL_COMPILE_STATUS, &success); if (!success) { glGetShaderInfoLog(vertex, 512, NULL, info); std::cout << "Vertex: " << info << "\n"; }
+    unsigned int vertex = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex, 1, &vs, NULL); glCompileShader(vertex);
+    int success; char info[512];
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success); if (!success) {
+        glGetShaderInfoLog(vertex, 512, NULL, info); std::cout << "Vertex: " << info << "\n"; }
 
-    unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(frag, 1, &fs, NULL); glCompileShader(frag);
-    glGetShaderiv(frag, GL_COMPILE_STATUS, &success); if (!success) { glGetShaderInfoLog(frag, 512, NULL, info); std::cout << "Fragment: " << info << "\n"; }
+    unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(frag, 1, &fs, NULL); glCompileShader(frag);
+    glGetShaderiv(frag, GL_COMPILE_STATUS, &success); if (!success) {
+        glGetShaderInfoLog(frag, 512, NULL, info); std::cout << "Fragment: " << info << "\n"; }
 
-    unsigned int program = glCreateProgram(); glAttachShader(program, vertex); glAttachShader(program, frag); glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &success); if (!success) { glGetProgramInfoLog(program, 512, NULL, info); std::cout << "Link: " << info << "\n"; }
+    unsigned int program = glCreateProgram(); glAttachShader(program, vertex);
+    glAttachShader(program, frag); glLinkProgram(program);
+    glGetProgramiv(program, GL_LINK_STATUS, &success); if (!success) {
+        glGetProgramInfoLog(program, 512, NULL, info); std::cout << "Link: " << info << "\n"; }
 
     glDeleteShader(vertex); glDeleteShader(frag);
     return program;
@@ -266,7 +271,6 @@ inline void HdriSky::init(const std::string& hdrPath)
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
-    // Uvolnění dočasných GL objektů
     glDeleteFramebuffers(1, &captureFBO);
     glDeleteRenderbuffers(1, &captureRBO);
 }

@@ -9,6 +9,33 @@
 #include <iostream>
 #include <stb_image.h>
 
+const char *skyboxVertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+    out vec3 TexCoords;
+    uniform mat4 projection;
+    uniform mat4 view;
+    void main()
+    {
+        TexCoords = aPos;
+        // Odstranění translace z view matice pro nekonečně vzdálený skybox
+        vec4 pos = projection * mat4(mat3(view)) * vec4(aPos, 1.0);
+        gl_Position = pos.xyww; // Použití z ve w pro zaručení maximální hloubky
+    }
+    )";
+
+
+const char *skyboxFragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+    in vec3 TexCoords;
+    uniform samplerCube skybox;
+    void main()
+    {
+        FragColor = texture(skybox, TexCoords);
+    }
+    )";
+
 
 unsigned int loadCubemap(std::vector<std::string> faces)
 {
@@ -93,38 +120,12 @@ public:
         glDeleteProgram(shaderProgram);
         glDeleteTextures(1, &cubemapTexture);
     }
-
+    unsigned int getCubeMap(){
+        return cubemapTexture;
+    }
 private:
 
     unsigned int skyboxVAO, skyboxVBO, shaderProgram, cubemapTexture;
-
-    const char *skyboxVertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-    out vec3 TexCoords;
-    uniform mat4 projection;
-    uniform mat4 view;
-    void main()
-    {
-        TexCoords = aPos;
-        // Odstranění translace z view matice pro nekonečně vzdálený skybox
-        vec4 pos = projection * mat4(mat3(view)) * vec4(aPos, 1.0);
-        gl_Position = pos.xyww; // Použití z ve w pro zaručení maximální hloubky
-    }
-    )";
-
-
-        const char *skyboxFragmentShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-    in vec3 TexCoords;
-    uniform samplerCube skybox;
-    void main()
-    {
-        FragColor = texture(skybox, TexCoords);
-    }
-    )";
-
 
     unsigned int compileShader(const char* src, GLenum type) {
         unsigned int s = glCreateShader(type);

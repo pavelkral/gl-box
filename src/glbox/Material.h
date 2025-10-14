@@ -1,12 +1,13 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
+#include "Shader.h"
+
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <string>
-#include <fstream>
-#include <sstream>
+
 #include <iostream>
 #include <vector>
 
@@ -22,51 +23,11 @@ public:
     std::vector<Texture> textures;
     unsigned int shadowMapID;
 
-    Material(const char* vertexPath, const char* fragmentPath, const std::vector<Texture>& textures, unsigned int sshadowMap) {
-        // Shader loading and compilation code
-        std::string vertexCode;
-        std::string fragmentCode;
-        std::ifstream vShaderFile;
-        std::ifstream fShaderFile;
+    Material(const char* vertexPath, const char* fragmentPath,
+             const std::vector<Texture>& textures, unsigned int sshadowMap) {
 
-        vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-        fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-        try {
-            vShaderFile.open(vertexPath);
-            fShaderFile.open(fragmentPath);
-            std::stringstream vShaderStream, fShaderStream;
-            vShaderStream << vShaderFile.rdbuf();
-            fShaderStream << fShaderFile.rdbuf();
-            vShaderFile.close();
-            fShaderFile.close();
-            vertexCode = vShaderStream.str();
-            fragmentCode = fShaderStream.str();
-        } catch (std::ifstream::failure& e) {
-            std::cout << "CHYBA::SHADER::SOUBOR_NEBYL_USPESNE_PRECTEN: " << e.what() << std::endl;
-        }
-        const char* vShaderCode = vertexCode.c_str();
-        const char* fShaderCode = fragmentCode.c_str();
-
-        unsigned int vertex, fragment;
-        vertex = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertex, 1, &vShaderCode, NULL);
-        glCompileShader(vertex);
-        checkCompileErrors(vertex, "VERTEX");
-
-        fragment = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragment, 1, &fShaderCode, NULL);
-        glCompileShader(fragment);
-        checkCompileErrors(fragment, "FRAGMENT");
-
-        shaderProgramID = glCreateProgram();
-        glAttachShader(shaderProgramID, vertex);
-        glAttachShader(shaderProgramID, fragment);
-        glLinkProgram(shaderProgramID);
-        checkCompileErrors(shaderProgramID, "PROGRAM");
-
-        glDeleteShader(vertex);
-        glDeleteShader(fragment);
-
+        Shader shaderProgram(vertexPath, fragmentPath);
+        shaderProgramID = shaderProgram.ID;
         // Store textures
         this->textures = textures;
         this->shadowMapID = sshadowMap;
