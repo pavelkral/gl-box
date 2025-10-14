@@ -321,8 +321,9 @@ inline void Sphere::draw(const glm::mat4& model, const glm::mat4& view, const gl
     glUniform1f(glGetUniformLocation(shaderProgram,"ao"),ao);
     glUniform1f(glGetUniformLocation(shaderProgram,"reflectionStrength"),reflectionStrength);
     glUniform3fv(glGetUniformLocation(shaderProgram,"lightDir"),1,glm::value_ptr(lightDir));
-
-    // Nové uniformy
+  glm::vec3 lightColor = glm::vec3(500.0f);
+    glUniform3fv(glGetUniformLocation(shaderProgram,"lightColor"), 1, glm::value_ptr(lightColor));
+    // ...
     glUniform1f(glGetUniformLocation(shaderProgram, "transmission"), transmission);
     glUniform1f(glGetUniformLocation(shaderProgram, "ior"), ior);
 
