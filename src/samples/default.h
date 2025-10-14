@@ -335,37 +335,28 @@ int main() {
         model.draw(view,projection, camera.Position);
         model1.draw(view,projection, camera.Position);
 
-        sphereLeft.setMaterial(glm::vec3(1.0f, 0.766f, 0.336f), 1.0f, 0.4f, 0.2f, 1.0f, 1.0f, 0.0f, 1.52f);
-        sphereRight.setMaterial(glm::vec3(0.0f, 0.5f, 1.0f), 1.0f, 0.9f, 0.1f, 1.0f, 1.0f, 0.0f, 1.52f);
-        sphereCenter.setMaterial(glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 0.1f, 0.5f, 1.0f, 1.0f, 0.0f, 1.52f); // Běžný plast
+        sphereLeft.setMaterial(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, 0.0f, 0.3f, 1.0f, 0.0f, 0.0f, 1.52f);
+        sphereRight.setMaterial(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 0.7f, 0.1f, 1.0f, 0.0f, 0.0f, 1.52f);
+        sphereCenter.setMaterial(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 0.9f, 0.1f, 1.0f, 0.1f, 0.0f, 1.52f); // Běžný plast
 
         // --- Vykreslení koulí ---
         glm::vec3 objPos;
         glm::vec3 lightDir;
         glm::vec3 lightColor = glm::vec3(300.0f, 300.0f, 300.0f); // Silná bílá (pro Direct Lighting)
 
-        // Koule 1: Levá
         objPos     = glm::vec3(modelA[3]);
-        // DOPORUČENÝ SMĚR: Od objektu ke světlu (Light Vector)
         lightDir   = glm::normalize(lightPos - objPos);
 
         sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,
                         lightSpaceMatrix, lightDir);
-        // POZNÁMKA: Předpokládá se, že draw nyní přijímá lightColor jako poslední parametr.
-
-        // Koule 2: Pravá
         objPos     = glm::vec3(modelB[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
         sphereRight.draw(modelB, view, projection, camera.Position, cubeMap, shadowMap.texture,
                          lightSpaceMatrix, lightDir);
-
-        // Koule 3: Středová (dříve průhledná)
         objPos     = glm::vec3(modelC[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
-        // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ (Nyní neprůhledné, kreslí se normálně) ---
-        // OBRÁCENÝ SMĚR ZDE BYL CHYBA: Zrušeno -lightDir
         sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture,
                           lightSpaceMatrix, lightDir);
        // glDepthMask(GL_FALSE); // NOVÁ ZMĚNA

@@ -297,7 +297,8 @@ inline unsigned int Sphere::createShader(const char* vs,const char* fs){
     return program;
 }
 
-inline void Sphere::setMaterial(const glm::vec3& col, float a, float m, float r, float ambient, float refl, float trans, float indexOfRefraction){
+inline void Sphere::setMaterial(const glm::vec3& col, float a, float m, float r,
+                                float ambient, float refl, float trans, float indexOfRefraction){
     color=col; alpha=a; metallic=m; roughness=r; ao=ambient; reflectionStrength=refl;
     transmission = trans; ior = indexOfRefraction;
 }
@@ -307,7 +308,7 @@ inline void Sphere::draw(const glm::mat4& model, const glm::mat4& view, const gl
                          const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir) const
 {
     glUseProgram(shaderProgram);
-
+    glm::vec3 lightColor = glm::vec3(500.0f);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"model"),1,GL_FALSE,glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"view"),1,GL_FALSE,glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"projection"),1,GL_FALSE,glm::value_ptr(proj));
@@ -321,16 +322,13 @@ inline void Sphere::draw(const glm::mat4& model, const glm::mat4& view, const gl
     glUniform1f(glGetUniformLocation(shaderProgram,"ao"),ao);
     glUniform1f(glGetUniformLocation(shaderProgram,"reflectionStrength"),reflectionStrength);
     glUniform3fv(glGetUniformLocation(shaderProgram,"lightDir"),1,glm::value_ptr(lightDir));
-  glm::vec3 lightColor = glm::vec3(500.0f);
     glUniform3fv(glGetUniformLocation(shaderProgram,"lightColor"), 1, glm::value_ptr(lightColor));
-    // ...
     glUniform1f(glGetUniformLocation(shaderProgram, "transmission"), transmission);
     glUniform1f(glGetUniformLocation(shaderProgram, "ior"), ior);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_CUBE_MAP,envCubemap);
     glUniform1i(glGetUniformLocation(shaderProgram,"environmentMap"),0);
-
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D,shadowMap);
     glUniform1i(glGetUniformLocation(shaderProgram,"shadowMap"),1);
