@@ -14,7 +14,7 @@
 #include "../glbox/Material.h"
 #include "../glbox/Model.h"
 #include "../glbox/SceneObject.h"
-#include "../glbox/StaticMesh.h"
+#include "../glbox/ProceduralMesh.h"
 #include "../glbox/Transform.h"
 #include "../glbox/Shader.h"
 #include "../glbox/Texture.h"
@@ -84,7 +84,7 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 330");
 
     // --- DEPTH BUFFER SHADOWS ---
-    Loader::DepthMap shadowMap = Loader::Trexture::createDepthMapFBO();
+    DepthMap shadowMap = Trexture::createDepthMapFBO();
     //============================================================================
     // ---Scene ---
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
@@ -100,8 +100,8 @@ int main() {
             "assets/textures/skybox/back.bmp"
         };
 
-    unsigned int floorTexID = Loader::Trexture::loadTexture("assets/textures/floor.png");
-    unsigned int brickTexID = Loader::Trexture::loadTexture("assets/textures/floor.png");
+    unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
+    unsigned int brickTexID = Trexture::loadTexture("assets/textures/floor.png");
     //unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
@@ -118,8 +118,8 @@ int main() {
     Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
     Geometry::generateCube(1.0f, vertices, indices);
    // Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
-    StaticMesh cubeMesh(vertices,indices,&cubeMaterial);
-    StaticMesh planeMesh(vertices1,indices1,&floorMaterial);
+    ProceduralMesh cubeMesh(vertices,indices,&cubeMaterial);
+    ProceduralMesh planeMesh(vertices1,indices1,&floorMaterial);
 
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
@@ -141,11 +141,39 @@ int main() {
     Sphere sphereRight;
     Sphere sphereCenter;
 
+    unsigned int albedoTex = Trexture::loadTexture("assets/textures/clamp/base.png");
+    unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
+    unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
+
+    unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
+
+   // sphereCenter.setAlbedoTexture(albedoTex);
+   // sphereCenter.setNormalTexture(normalTex );
+   // sphereCenter.setMetallicTexture(metallicTex);
+  //  sphereCenter.setRoughnessTexture(roughnessTex);
+
+
+
+    sphereRight.setMaterial(
+        glm::vec3(1.0f, 0.766f, 0.336f), // Barva zlata
+        1.0f,                            // Metallic = 1.0 (je to kov)
+        1.0f,                            // Roughness = 0.2 (celkem lesklá)
+        1.0f,                            // AO
+        1.0f                             // Síla odrazů
+        );
+    sphereLeft.setMaterial(glm::vec3(1.0f, 0.766f, 0.336f), 1.0f, 0.4f, 1.0f, 1.0f); // Vyšší Roughness
+
+    // 2. Nastavte debug mód pro každou kouli PŘED KRESLENÍM
+   // sphereLeft.debugMode = 0; // Normální mód
+   // sphereRight.debugMode = 0; // Zobrazí jen Lo (Direct Lighting)
+   // sphereCenter.debugMode = 0;
+
+
     ModelFBX model("assets/models/Player/Player.fbx");
-    GLuint myAlbedoTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
-    GLuint myNormalTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
-    GLuint myMetallicTex =Loader::Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
-    GLuint mySmoothnessTex = Loader::Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
+    GLuint myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
+    GLuint myNormalTex = Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
+    GLuint myMetallicTex = Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
+    GLuint mySmoothnessTex = Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
     model.setAlbedoTexture(myAlbedoTex,0);
     model.setNormalTexture(myNormalTex,0);
     model.setMetallicTexture(myMetallicTex,0);
@@ -160,8 +188,8 @@ int main() {
 
 
     ModelFBX model1("assets/models/USMarines/usmarine.FBX");
-    GLuint Marine =Loader::Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
-    GLuint m16 = Loader::Trexture::loadTexture("assets/models/USMarines/m16.jpg");
+    GLuint Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
+    GLuint m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
     model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model1.setFallbackMetallic(0.1f);
     model1.setFallbackSmoothness(0.3f);
@@ -180,7 +208,7 @@ int main() {
     //     //std::cout << val << " ";
     // }/
     //================================================================dIRECTION LIGHT
-    float rotationSpeed = 50.0f;
+    float rotationSpeed = 50.0f;  
     glm::vec3 lightPos(-2.0f, 14.0f, -1.0f);
     float lightSpeed = 1.0f;
     static bool autoLightMovement = false;
@@ -189,13 +217,18 @@ int main() {
 
     //===========================================================================main loop
     //==================================================================================.
-
+    using Clock = std::chrono::steady_clock;
+    auto lastUpdate = Clock::now();
+    const std::chrono::seconds updateInterval(5);
+    bool sphere = true;
     while (!glfwWindowShouldClose(window)) {
 
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        auto now = Clock::now();
+        auto elapsed = now - lastUpdate;
         //============================================================================imgui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -221,12 +254,22 @@ int main() {
         //============================================================================input
         processInput(window);
 
+        if (elapsed >= updateInterval){
+            if (sphere)
+                Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
+            else
+                Geometry::generateCube(1.0f, vertices, indices);
+
+            cube.mesh->UpdateGeometry(vertices, indices);
+            sphere = !sphere;
+            lastUpdate = now;
+        }
         if (autoLightMovement) {
             lightPos.x = sin(glfwGetTime() * lightSpeed) * 3.0f;
             lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
         }
 
-        //  (lightSpaceMatrix)
+
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 50.0f;
@@ -245,10 +288,9 @@ int main() {
         model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
-        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);       
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
-
 
         glm::mat4 modelA = glm::mat4(1.0f);
         modelA = glm::translate(modelA, glm::vec3(-1.5f, 0.0f, 2.0f));
@@ -261,8 +303,6 @@ int main() {
         modelC = glm::scale(modelC, glm::vec3(0.5f));
          const float IOR_GLASS = 1.0f / 1.52f;
       //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
-
-
          glm::mat4 invProjection = glm::inverse(projection);
          glm::mat4 invView = glm::inverse(view);
          // ================================================================= //
@@ -300,7 +340,6 @@ int main() {
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
       //  model.playAnimationByIndex(0);
         model.setAnimationLoopRange(3.5f, 3.55f);
         model.updateAnimation(t);
@@ -309,63 +348,31 @@ int main() {
         //============================================================================draw geometry
 
         glDisable(GL_DEPTH_TEST);
-        // skydome.Draw(invView, invProjection, directionToSun);
-        skybox.Draw(view, projection);
-       // sky.draw(view, projection);
+      //  skydome.Draw(invView, invProjection, directionToSun);
+        //skybox.Draw(view, projection);
+        sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
-        unsigned int cubeMap = sky.getCubeMap();
+        unsigned int cubeMap = skybox.getCubeMap();
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
         model1.draw(view,projection, camera.Position);
-         // --- 1. Koule A: STŘÍBRNÝ CHROM (Vlevo) ---
 
-
-        sphereLeft.setMaterial(
-            glm::vec3(0.0f, 1.0f, 0.0f), // color (Albedo: Černá)
-            1.0f,                        // alpha
-            1.0f,                        // metallic (Kov: Spekulární odlesk bude černý)
-            0.3f,                       // roughness (Velmi nízká pro hladký, zrcadlový lesk)
-            1.0f,                        // ao
-            1.0f,                        // reflectionStrength (Nechat na 1.0 pro správný PBR vzhled)
-            0.0f,                        // transmission
-            0.0f
-            );
+        glm::vec3 myLightColor = glm::vec3(1.0f, 0.95f, 0.8f);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
         sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture, lightSpaceMatrix, lightDir);
-
-        // Koule vpravo: Zlato (kov)
-        sphereRight.setMaterial(
-            glm::vec3(1.0f, 0.765f, 0.336f), // Barva zlata
-            1.0f,   // Alpha
-            1.0f,   // Metallic
-            0.2f,   // Roughness
-            1.0f,   // AO
-            1.0f,   // Reflection Strength
-            0.0f,   // Transmission (neprůhledný)
-            0.0f    // IOR (pro kovy se nepoužívá)
-            );
-        sphereRight.draw(modelB, view, projection, camera.Position, cubeMap, shadowMap.texture, lightSpaceMatrix, lightDir);
-
+        sphereRight.draw(modelB, view, projection, camera.Position, cubeMap, shadowMap.texture, lightSpaceMatrix,lightDir);
         // --- 2. VYKRESLENÍ PRŮHLEDNÝCH OBJEKTŮ ---
-        glDepthMask(GL_FALSE); // NOVÁ ZMĚNA
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        // Koule uprostřed: Sklo
-        sphereCenter.setMaterial(
-            glm::vec3(0.9f, 0.9f, 1.0f), // Barva (ovlivní hlavně odlesky)
-            0.2f,                        // Alpha (pro blending s pozadím)
-            0.0f,                        // metallic (SKLO JE DIELEKTRIKUM!) <-- ZMĚNA!
-            0.01f,                       // roughness (MUSÍ BÝT EXTRÉMNĚ NÍZKÁ pro zrcadlové sklo) <-- ZMĚNA!
-            1.0f,                        // AO
-            1.0f,                        // Reflection Strength
-            1.0f,                        // Transmission (plně průhledné/refrakční)
-            1.52f                        // IOR (index lomu pro sklo)
-            );
-        sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture, lightSpaceMatrix, lightDir);
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE); // NOVÁ ZMĚNA
+        sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture, lightSpaceMatrix,-lightDir);
+       // glDepthMask(GL_FALSE); // NOVÁ ZMĚNA
+       // glEnable(GL_BLEND);
+       // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+       // glDisable(GL_BLEND);
+       // glDepthMask(GL_TRUE); // NOVÁ ZMĚNA
 
         //============================================================================draw imgui
         ImGui::Render();

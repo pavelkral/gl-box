@@ -7,7 +7,6 @@
 #include "stb_image.h"
 #include <iostream>
 
-namespace Loader {
 
 struct DepthMap {
     unsigned int fbo;
@@ -117,8 +116,7 @@ public:
 
 private:
 };
-
-} // namespace Loader
+// namespace Loader
 
 #endif // TEXTURE_H
 

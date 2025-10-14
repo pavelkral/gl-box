@@ -59,7 +59,7 @@ include_directories(
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Transform.h
     glbox/Material.h
-    glbox/StaticMesh.h
+    glbox/ProceduralMesh.h
     glbox/SceneObject.h
     glbox/Model.h
     glbox/Camera.h

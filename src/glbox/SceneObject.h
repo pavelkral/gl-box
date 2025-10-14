@@ -2,14 +2,14 @@
 #define SCENEOBJECT_H
 
 #include "Transform.h"
-#include "StaticMesh.h"
+#include "ProceduralMesh.h"
 
 class SceneObject {
 public:
     Transform transform;
-    StaticMesh* mesh;
+    ProceduralMesh* mesh;
 
-    SceneObject(StaticMesh* mesh) : mesh(mesh) {}
+    SceneObject(ProceduralMesh* mesh) : mesh(mesh) {}
 
     void Draw(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix) const {
         mesh->Draw(transform.GetModelMatrix(), view, projection, lightSpaceMatrix);
