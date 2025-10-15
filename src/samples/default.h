@@ -102,7 +102,7 @@ int main() {
 
     unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
     unsigned int brickTexID = Trexture::loadTexture("assets/textures/floor.png");
-    //unsigned int modeTexID = Loader::Trexture::loadTexture("anime.png");
+
 
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
@@ -110,11 +110,12 @@ int main() {
 
     Material floorMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,shadowMap.texture);
     Material cubeMaterial("shaders/material/texture.vert","shaders/material/texture.frag", brickTextures,shadowMap.texture);
-    //Material modelMaterial("shaders/basic_texture_shader.vert","shaders/basic_texture_shader.frag", modelTextures,depthMap);
+
     std::vector<float> vertices;
     std::vector<unsigned int> indices;
     std::vector<float> vertices1;
     std::vector<unsigned int> indices1;
+
     Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
     Geometry::generateCube(1.0f, vertices, indices);
    // Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
@@ -133,7 +134,9 @@ int main() {
         glfwTerminate();
         return -1;
     }
+
     TexturedSky skybox(faces1);
+    \
     HdriSky sky;
     sky.init("assets/textures/sky.hdr");
 
@@ -167,8 +170,6 @@ int main() {
     model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
 
-
-
     ModelFBX model1("assets/models/USMarines/usmarine.FBX");
     GLuint Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
     GLuint m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
@@ -177,11 +178,11 @@ int main() {
     model1.setFallbackSmoothness(0.3f);
     model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
    // model1.transform.rotation = glm::vec3(90.0f, 180.0f, 180.0f);
-     model1.transform.rotation = glm::vec3(-90.0f, 180.0f, 0.0f);
+    model1.transform.rotation = glm::vec3(-90.0f, 180.0f, 0.0f);
     model1.transform.scale    = glm::vec3(0.012f);
     model1.setAlbedoTexture(m16,1);
     model1.setAlbedoTexture(Marine,0);
-    for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
+    //for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
     //model1.stopAnimation();
    // model.stopAnimation();
  //   model.playAnimationByIndex(1);
@@ -189,7 +190,9 @@ int main() {
     // for (auto val : ourModel.meshes[0].indices) {
     //     //std::cout << val << " ";
     // }/
-    //================================================================dIRECTION LIGHT
+
+    //================================================================DIRECTION LIGHT
+
     float rotationSpeed = 50.0f;  
     glm::vec3 lightPos(-2.0f, 14.0f, -1.0f);
     float lightSpeed = 1.0f;
@@ -197,12 +200,13 @@ int main() {
     glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.3f;
 
-    //===========================================================================main loop
-    //==================================================================================.
     using Clock = std::chrono::steady_clock;
     auto lastUpdate = Clock::now();
     const std::chrono::seconds updateInterval(5);
     bool sphere = true;
+
+    //===========================================================================main loop
+    //==================================================================================.
     while (!glfwWindowShouldClose(window)) {
 
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -258,7 +262,6 @@ int main() {
         float orthoSize =20.0f;
         float lightX = lightPos.x;
         float lightZ = lightPos.z;
-        //glm::vec3 cubePos = cube.transform.position;
         glm::vec3 lightTarget = glm::vec3(0.0f, 0.0f, 0.0f);//center
 
         lightProjection = glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize,near_plane, far_plane);
