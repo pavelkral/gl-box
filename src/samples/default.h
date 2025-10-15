@@ -129,7 +129,7 @@ int main() {
 
     ProceduralSky skydome;
     if (!skydome.Setup()) {
-        std::cerr << "Chyba pri inicializaci skydome." << std::endl;
+        std::cerr << "err skydome." << std::endl;
         glfwTerminate();
         return -1;
     }
@@ -145,6 +145,11 @@ int main() {
     unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
     unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
     unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
+
+    sphereLeft.setAlbedoTexture(albedoTex);
+    sphereLeft.setNormalTexture(normalTex);
+ ///   sphereLeft.setMetallicTexture(metallicTex);
+    sphereLeft.setRoughnessTexture(roughnessTex);
 
     ModelFBX model("assets/models/Player/Player.fbx");
     GLuint myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
@@ -235,7 +240,7 @@ int main() {
             if (sphere)
                 Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
             else
-                Geometry::generateCube(1.0f, vertices, indices);
+                Geometry::generateCube(2.0f, vertices, indices);
 
             cube.mesh->UpdateGeometry(vertices, indices);
             sphere = !sphere;
@@ -328,43 +333,51 @@ int main() {
         sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
-        unsigned int cubeMap = skybox.getCubeMap();
+        unsigned int cubeMap = sky.getCubeMap();
 
         floor.Draw(view, projection, lightSpaceMatrix);
         cube.Draw(view, projection, lightSpaceMatrix);
         model.draw(view,projection, camera.Position);
         model1.draw(view,projection, camera.Position);
 
-        sphereLeft.setMaterial(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, 0.0f, 0.3f, 1.0f, 0.0f, 0.0f, 1.52f);
-        sphereRight.setMaterial(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f, 0.7f, 0.1f, 1.0f, 0.0f, 0.0f, 1.52f);
-        sphereCenter.setMaterial(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f, 0.9f, 0.1f, 1.0f, 0.1f, 0.0f, 1.52f); // Běžný plast
+        // Sets the material properties for a Sphere object
+        // Parameters:
+        // glm::vec3 color          → Base color of the material (albedo, sRGB)
+        // float alpha              → Opacity (1.0 = fully opaque, 0.0 = fully transparent)
+        // float metallic           → Metalness (0.0 = non-metal/plastic, 1.0 = fully metallic)
+        // float roughness          → Surface roughness (0.0 = mirror-like, 1.0 = fully rough/matte)
+        // float ao                 → Ambient occlusion / strength of ambient light (0.0–1.0)
+        // float reflectionStrength → Strength of reflections (0.0–1.0), how much the environment map affects appearance
+        // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
+        // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
+        sphereLeft.setMaterial(glm::vec3(1.0f,0.0f,0.0f), 1.0f, 0.0f, 0.1f, 1.0f, 0.5f);
+        sphereRight.setMaterial(glm::vec3(0.08f,1.0f,0.08f), 1.0f, 1.0f, 0.3f, 0.01f, 1.0f);
+        sphereCenter.setMaterial(glm::vec3(1.0f,1.0f,1.0f), 1.0f, 1.0f, 0.1f, 1.0f, 1.0f);
 
-        // --- Vykreslení koulí ---
         glm::vec3 objPos;
         glm::vec3 lightDir;
-        glm::vec3 lightColor = glm::vec3(300.0f, 300.0f, 300.0f); // Silná bílá (pro Direct Lighting)
-
+        //glm::vec3 lightColor = glm::vec3(300.0f, 300.0f, 300.0f); //  Direct Lighting)
         objPos     = glm::vec3(modelA[3]);
         lightDir   = glm::normalize(lightPos - objPos);
-
         sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,
-                        lightSpaceMatrix, lightDir);
+                        lightSpaceMatrix, lightDir,lightColor);
         objPos     = glm::vec3(modelB[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
         sphereRight.draw(modelB, view, projection, camera.Position, cubeMap, shadowMap.texture,
-                         lightSpaceMatrix, lightDir);
+                         lightSpaceMatrix, lightDir,lightColor);
         objPos     = glm::vec3(modelC[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
         sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture,
-                          lightSpaceMatrix, lightDir);
-       // glDepthMask(GL_FALSE); // NOVÁ ZMĚNA
+                          lightSpaceMatrix, lightDir,lightColor);
+
+       // glDepthMask(GL_FALSE);
        // glEnable(GL_BLEND);
        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
        // glDisable(GL_BLEND);
-       // glDepthMask(GL_TRUE); // NOVÁ ZMĚNA
+       // glDepthMask(GL_TRUE);
 
         //============================================================================draw imgui
         ImGui::Render();
