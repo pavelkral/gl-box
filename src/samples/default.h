@@ -11,10 +11,8 @@
 #include <string>
 
 #include "../glbox/Camera.h"
-#include "../glbox/Material.h"
 #include "../glbox/Model.h"
 #include "../glbox/SceneObject.h"
-#include "../glbox/ProceduralMesh.h"
 #include "../glbox/StaticMesh.h"
 #include "../glbox/PbrMaterial.h"
 #include "../glbox/Transform.h"
@@ -87,79 +85,10 @@ int main() {
 
     // --- DEPTH BUFFER SHADOWS ---
     DepthMap shadowMap = Trexture::createDepthMapFBO();
-    //============================================================================
-    // ---Scene ---
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
     Shader modelDepthShader("shaders/model/model_depth.vert", "shaders/model/model_depth.frag");
-
-    unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
-    unsigned int floorTexNormID = Trexture::loadTexture("assets/textures/floorN.png");
-    unsigned int floorTexRoughID = Trexture::loadTexture("assets/textures/floorM.png");
-
-    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};  
-
-    Material cubeMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,shadowMap.texture);
-
-    std::vector<float> vertices;
-    std::vector<unsigned int> indices;
-    std::vector<float> vertices1;
-    std::vector<unsigned int> indices1;
-
-    Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
-    Geometry::generateCube(1.0f, vertices, indices);
-    // Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
-    ProceduralMesh cubeMesh(vertices,indices,&cubeMaterial);
-    SceneObject cube(&cubeMesh);
-    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
-    cube.transform.scale = glm::vec3(0.5f);
-
-    // Parameters:
-    // glm::vec3 color          → Base color of the material (albedo, sRGB)
-    // float alpha              → Opacity (1.0 = fully opaque, 0.0 = fully transparent)
-    // float metallic           → Metalness (0.0 = non-metal/plastic, 1.0 = fully metallic)
-    // float roughness          → Surface roughness (0.0 = mirror-like, 1.0 = fully rough/matte)
-    // float ao                 → Ambient occlusion / strength of ambient light (0.0–1.0)
-    // float reflectionStrength → Strength of reflections (0.0–1.0), how much the environment map affects appearance
-    // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
-    // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
-
-    unsigned int albedoTex = Trexture::loadTexture("assets/textures/clamp/base.png");
-    unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
-    unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
-    unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
-
-    glm::vec3 albedoColor;
-    float alpha = 1.0f;
-    float metallic = 1.0f;;
-    float roughness = 1.0f;;
-    float ao = 1.0f;;
-    float reflectionStrength = 1.0f;;
-    float transmission= 1.0f;;
-    float ior = 1.0f;;
-
-    PbrMaterial goldMaterial;
-    goldMaterial.metallic = 1.0f;
-    goldMaterial.roughness = 0.1f;
-    goldMaterial.setAlbedoMap( floorTexID);
-
-
-    PbrMaterial goldMaterial1;
-    goldMaterial1.metallic = 1.0f;
-    goldMaterial1.roughness = 0.4f;
-    goldMaterial1.reflectionStrength = 0;
-    goldMaterial1.ao = 0.0f;
-    goldMaterial1.setAlbedoMap( floorTexID);
-    goldMaterial1.setNormalMap(floorTexNormID);
-    goldMaterial1.setMetallicMap(floorTexRoughID);
-    StaticMesh staticmesh(vertices,indices, &goldMaterial1);
-
-    SceneObject pbrcube(&staticmesh);
-    pbrcube.transform.scale = glm::vec3(0.5f);
-    pbrcube.transform.position = glm::vec3(0.0f, 0.5f, 2.0f);
-    \
-    StaticMesh planeMesh(vertices1,indices1,&goldMaterial1);
-    SceneObject floor(&planeMesh);
-    floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
+    //============================================================================
+    // ---Scene ---
 
     ProceduralSky skydome;
     skydome.Setup();
@@ -174,10 +103,77 @@ int main() {
             "assets/textures/skybox/back.bmp"
         };
     TexturedSky skybox(faces);
-    \
+
     HdriSky sky;
     sky.init("assets/textures/sky.hdr");
 
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    std::vector<float> vertices1;
+    std::vector<unsigned int> indices1;
+    std::vector<float> vertices2;
+    std::vector<unsigned int> indices2;
+    Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
+    Geometry::generateCube(1.0f, vertices, indices);
+    Geometry::generateSphere(1.0f, 32, 32, vertices2, indices2);
+
+    unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
+    unsigned int floorTexNormID = Trexture::loadTexture("assets/textures/floorN.png");
+    unsigned int floorTexRoughID = Trexture::loadTexture("assets/textures/floorM.png");
+
+    unsigned int albedoTex = Trexture::loadTexture("assets/textures/clamp/base.png");
+    unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
+    unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
+    unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
+
+    // Parameters:
+    // glm::vec3 color          → Base color of the material (albedo, sRGB)
+    // float alpha              → Opacity (1.0 = fully opaque, 0.0 = fully transparent)
+    // float metallic           → Metalness (0.0 = non-metal/plastic, 1.0 = fully metallic)
+    // float roughness          → Surface roughness (0.0 = mirror-like, 1.0 = fully rough/matte)
+    // float ao                 → Ambient occlusion / strength of ambient light (0.0–1.0)
+    // float reflectionStrength → Strength of reflections (0.0–1.0), how much the environment map affects appearance
+    // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
+    // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
+
+    glm::vec3 albedoColor;
+    float alpha = 1.0f;
+    float metallic = 1.0f;;
+    float roughness = 1.0f;;
+    float ao = 1.0f;;
+    float reflectionStrength = 1.0f;;
+    float transmission= 1.0f;;
+    float ior = 1.0f;;
+
+    PbrMaterial goldMaterial;
+    goldMaterial.metallic = 1.0f;
+    goldMaterial.roughness = 0.4f;
+    goldMaterial.setAlbedoMap( albedoTex);
+    goldMaterial.setNormalMap(normalTex );
+    goldMaterial.setMetallicMap(metallicTex);
+
+    PbrMaterial goldMaterial1;
+    goldMaterial1.metallic = 1.0f;
+    goldMaterial1.roughness = 0.4f;
+    goldMaterial1.reflectionStrength = 0;
+    goldMaterial1.ao = 0.0f;
+    goldMaterial1.setAlbedoMap( floorTexID);
+    goldMaterial1.setNormalMap(floorTexNormID);
+    goldMaterial1.setMetallicMap(floorTexRoughID);
+
+    StaticMesh staticmesh(vertices,indices, &goldMaterial);
+    SceneObject pbrcube(&staticmesh);
+    pbrcube.transform.scale = glm::vec3(0.5f);
+    pbrcube.transform.position = glm::vec3(0.0f, 0.5f, 2.0f);
+
+    StaticMesh planeMesh(vertices1,indices1,&goldMaterial1);
+    SceneObject floor(&planeMesh);
+    floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
+
+    StaticMesh cubeMesh1(vertices2,indices2,&goldMaterial1);
+    SceneObject cube(&cubeMesh1);
+    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
+    cube.transform.scale = glm::vec3(0.5f);
 
     ModelFBX model("assets/models/Player/Player.fbx");
     unsigned int myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
@@ -272,7 +268,7 @@ int main() {
             else
                 Geometry::generateCube(1.0f, vertices, indices);
             staticmesh.UpdateGeometry(vertices, indices);
-            cube.getProceduralMesh()->UpdateGeometry(vertices, indices);
+            cubeMesh1.UpdateGeometry(vertices, indices);
             sphere = !sphere;
             lastUpdate = now;
         }
@@ -294,11 +290,6 @@ int main() {
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
-
-        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
         glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);       
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
@@ -320,6 +311,7 @@ int main() {
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
+        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
         // --- 1.pass depth map for shadow
         //============================================================================draw shadows
         glViewport(0, 0, shadowMap.width, shadowMap.height);
@@ -339,6 +331,8 @@ int main() {
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
+        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
         //  model.playAnimationByIndex(0);
         model.setAnimationLoopRange(3.5f, 3.55f);
         model.updateAnimation(t);
@@ -352,6 +346,7 @@ int main() {
         //skybox.Draw(view, projection);
         sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
+
         glm::vec3 objPos;
         glm::vec3 lightDir;
         unsigned int cubeMap = sky.getCubeMap();
@@ -363,8 +358,6 @@ int main() {
         cube.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
         model.draw(view,projection, camera.Position);
         model1.draw(view,projection, camera.Position);
-
-
 
         objPos     = glm::vec3(pbrcube.transform.position);
         lightDir   = glm::normalize(lightPos - objPos);
