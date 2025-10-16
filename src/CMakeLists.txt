@@ -90,6 +90,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/geometry/Geometry.h
     glbox/StaticMesh.h
     glbox/PbrMaterial.h
+    samples/pbr.h
 )
 
 if(WIN32)

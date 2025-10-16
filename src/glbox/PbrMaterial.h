@@ -256,9 +256,18 @@ public:
         setFloat("ao", ao); setFloat("reflectionStrength", reflectionStrength);
         setFloat("transmission", transmission); setFloat("ior", ior);
 
-        // Vazba textur: 0=Env, 1=Shadow, 2+=Material maps
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap); setInt("environmentMap", 0);
-        glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, shadowMap); setInt("shadowMap", 1);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
+        // Vycisteni (unbind) GL_TEXTURE_2D, pokud tam nejaká stará vazba zůstala.
+        glBindTexture(GL_TEXTURE_2D, 0); // <-- EXPLICITNÍ ČIŠTĚNÍ
+        setInt("environmentMap", 0);
+
+        // Jednotka 1: Shadow Map
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, shadowMap);
+        // Vycisteni (unbind) GL_TEXTURE_CUBE_MAP, pro případné staré vazby.
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0); // <-- EXPLICITNÍ ČIŠTĚNÍ
+        setInt("shadowMap", 1);
 
         bindTexture(2, "albedoMap",   "useAlbedoMap",   albedoMapID);
         bindTexture(3, "normalMap",   "useNormalMap",   normalMapID);
@@ -276,6 +285,7 @@ public:
         if (transmission > 0.0 || alpha < 1.0) {
             glDisable(GL_BLEND);
         }
+        glUseProgram(0);
     }
     void setParameters(
         const glm::vec3& albedoColor = glm::vec3(0.8f),

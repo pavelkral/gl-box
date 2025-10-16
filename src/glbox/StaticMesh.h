@@ -108,11 +108,17 @@ public:
         if (!material || VAO == 0) return;
 
         material->use(model, view, proj, cameraPos, envCubemap, shadowMap, lightSpaceMatrix, lightDir, lightCol);
+        if(material->transmission > 0.0){
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
 
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
-
+        if(material->transmission > 0.0){
+            glDisable(GL_BLEND);
+        }
         material->unuse();
     }
 

@@ -3,26 +3,84 @@
 
 #include "Transform.h"
 #include "ProceduralMesh.h"
+#include "StaticMesh.h"
+#include "Model.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 class SceneObject {
+
+private:
+    ProceduralMesh* mesh = nullptr;
+    StaticMesh* statiMesh = nullptr;
+    ModelFBX* model = nullptr;
+
 public:
     Transform transform;
-    ProceduralMesh* mesh;
+
+    SceneObject() = default;
 
     SceneObject(ProceduralMesh* mesh) : mesh(mesh) {}
 
-    void Draw(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& lightSpaceMatrix) const {
-        mesh->Draw(transform.GetModelMatrix(), view, projection, lightSpaceMatrix);
+    SceneObject(StaticMesh* statiMesh) : statiMesh(statiMesh) {}
+
+    SceneObject(ModelFBX* model) : model(model) {}
+
+    SceneObject(const Transform& initialTransform, ProceduralMesh* pMesh = nullptr, StaticMesh* sMesh = nullptr, ModelFBX* fbxModel = nullptr)
+        : transform(initialTransform), mesh(pMesh), statiMesh(sMesh), model(fbxModel) {}
+
+    ProceduralMesh* getProceduralMesh() const { return mesh; }
+    StaticMesh* getStaticMesh() const { return statiMesh; }
+    ModelFBX* getModel() const { return model; }
+
+    void setProceduralMesh(ProceduralMesh* newMesh) {
+        mesh = newMesh;
+    }
+    void setStaticMesh(StaticMesh* newStatiMesh) {
+        statiMesh = newStatiMesh;
+    }
+    void setModel(ModelFBX* newModel) {
+        model = newModel;
+    }
+
+    void Draw( const glm::mat4& view, const glm::mat4& proj,
+              const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
+              const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir, const glm::vec3& lightCol) const {
+          const glm::mat4 modelMatrix = transform.GetModelMatrix();
+        if (mesh) {
+            mesh->Draw(modelMatrix, view, proj, lightSpaceMatrix);
+        } else if (statiMesh) {
+            statiMesh->Draw(modelMatrix, view, proj,
+                             cameraPos,envCubemap,shadowMap,
+                             lightSpaceMatrix, lightDir, lightCol);
+        } else if (model) {
+            model->draw( view, proj,  cameraPos);
+        }
     }
 
     void DrawForShadow(unsigned int depthShaderID, const glm::mat4& lightSpaceMatrix) const {
+        const glm::mat4 modelMatrix = transform.GetModelMatrix();
+
         glUseProgram(depthShaderID);
         glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(transform.GetModelMatrix()));
+        glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 
-        glBindVertexArray(mesh->VAO);
-        glDrawElements(GL_TRIANGLES, mesh->vertexCount, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        if (mesh) {
+            glBindVertexArray(mesh->VAO);
+            glDrawElements(GL_TRIANGLES, mesh->vertexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        } else if (statiMesh) {
+            statiMesh->DrawForShadow(depthShaderID, modelMatrix, lightSpaceMatrix);
+        } else if (model) {
+            model->DrawForShadow(depthShaderID, lightSpaceMatrix);
+        }
+
+        glUseProgram(0);
+    }
+
+    void Update() {
     }
 };
+
 #endif // SCENEOBJECT_H

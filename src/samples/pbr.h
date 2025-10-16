@@ -12,17 +12,15 @@
 
 #include "../glbox/Camera.h"
 #include "../glbox/Material.h"
-#include "../glbox/Model.h"
 #include "../glbox/SceneObject.h"
 #include "../glbox/ProceduralMesh.h"
-#include "../glbox/StaticMesh.h"
-#include "../glbox/PbrMaterial.h"
 #include "../glbox/Transform.h"
 #include "../glbox/Shader.h"
 #include "../glbox/Texture.h"
 #include "../glbox/ProceduralSky.h"
 #include "../glbox/TexturedSky.h"
 #include "../glbox/HdriSky.h"
+#include "../glbox/geometry/Sphere.h"
 #include "../glbox/geometry/Geometry.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
@@ -90,28 +88,17 @@ int main() {
     //============================================================================
     // ---Scene ---
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
-    Shader modelDepthShader("shaders/model/model_depth.vert", "shaders/model/model_depth.frag");
+
 
     unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
-    unsigned int floorTexNormID = Trexture::loadTexture("assets/textures/floorN.png");
-    unsigned int floorTexRoughID = Trexture::loadTexture("assets/textures/floorM.png");
-
-    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};  
-
-    Material cubeMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,shadowMap.texture);
-
-    std::vector<float> vertices;
-    std::vector<unsigned int> indices;
+    std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
+    Material floorMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,shadowMap.texture);
     std::vector<float> vertices1;
     std::vector<unsigned int> indices1;
-
     Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
-    Geometry::generateCube(1.0f, vertices, indices);
-    // Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
-    ProceduralMesh cubeMesh(vertices,indices,&cubeMaterial);
-    SceneObject cube(&cubeMesh);
-    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
-    cube.transform.scale = glm::vec3(0.5f);
+    ProceduralMesh planeMesh(vertices1,indices1,&floorMaterial);
+    SceneObject floor(&planeMesh);
+    floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
 
     // Parameters:
     // glm::vec3 color          → Base color of the material (albedo, sRGB)
@@ -122,12 +109,6 @@ int main() {
     // float reflectionStrength → Strength of reflections (0.0–1.0), how much the environment map affects appearance
     // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
     // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
-
-    unsigned int albedoTex = Trexture::loadTexture("assets/textures/clamp/base.png");
-    unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
-    unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
-    unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
-
     glm::vec3 albedoColor;
     float alpha = 1.0f;
     float metallic = 1.0f;;
@@ -137,29 +118,7 @@ int main() {
     float transmission= 1.0f;;
     float ior = 1.0f;;
 
-    PbrMaterial goldMaterial;
-    goldMaterial.metallic = 1.0f;
-    goldMaterial.roughness = 0.1f;
-    goldMaterial.setAlbedoMap( floorTexID);
 
-
-    PbrMaterial goldMaterial1;
-    goldMaterial1.metallic = 1.0f;
-    goldMaterial1.roughness = 0.4f;
-    goldMaterial1.reflectionStrength = 0;
-    goldMaterial1.ao = 0.0f;
-    goldMaterial1.setAlbedoMap( floorTexID);
-    goldMaterial1.setNormalMap(floorTexNormID);
-    goldMaterial1.setMetallicMap(floorTexRoughID);
-    StaticMesh staticmesh(vertices,indices, &goldMaterial1);
-
-    SceneObject pbrcube(&staticmesh);
-    pbrcube.transform.scale = glm::vec3(0.5f);
-    pbrcube.transform.position = glm::vec3(0.0f, 0.5f, 2.0f);
-    \
-    StaticMesh planeMesh(vertices1,indices1,&goldMaterial1);
-    SceneObject floor(&planeMesh);
-    floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
 
     ProceduralSky skydome;
     skydome.Setup();
@@ -175,54 +134,30 @@ int main() {
         };
     TexturedSky skybox(faces);
     \
-    HdriSky sky;
+        HdriSky sky;
     sky.init("assets/textures/sky.hdr");
 
+    Sphere sphereLeft;
+    Sphere sphereRight;
+    Sphere sphereCenter;
 
-    ModelFBX model("assets/models/Player/Player.fbx");
-    unsigned int myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
-    unsigned int myNormalTex = Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
-    unsigned int myMetallicTex = Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
-    unsigned int mySmoothnessTex = Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
-    model.setAlbedoTexture(myAlbedoTex,0);
-    model.setNormalTexture(myNormalTex,0);
-    model.setMetallicTexture(myMetallicTex,0);
-    model.setAlbedoTexture(mySmoothnessTex,1);
-    model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model.setFallbackMetallic(0.1f);
-    model.setFallbackSmoothness(0.3f);
-    model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
-    model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-    model.transform.scale    = glm::vec3(0.01f);
+    unsigned int albedoTex = Trexture::loadTexture("assets/textures/clamp/base.png");
+    unsigned int normalTex = Trexture::loadTexture("assets/textures/clamp/norm.png");
+    unsigned int metallicTex = Trexture::loadTexture("assets/textures/clamp/met.png");
+    unsigned int roughnessTex = Trexture::loadTexture("assets/textures/clamp/ro.png");
 
-    ModelFBX model1("assets/models/USMarines/usmarine.FBX");
-    unsigned int Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
-    unsigned int m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
-    model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model1.setFallbackMetallic(0.1f);
-    model1.setFallbackSmoothness(0.3f);
-    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
-    // model1.transform.rotation = glm::vec3(90.0f, 180.0f, 180.0f);
-    model1.transform.rotation = glm::vec3(-90.0f, 180.0f, 0.0f);
-    model1.transform.scale    = glm::vec3(0.012f);
-    model1.setAlbedoTexture(m16,1);
-    model1.setAlbedoTexture(Marine,0);
-    //for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
-    //model1.stopAnimation();
-    // model.stopAnimation();
-    //   model.playAnimationByIndex(1);
-    //model.stopAnimation();
-    // for (auto val : ourModel.meshes[0].indices) {
-    //     //std::cout << val << " ";
-    // }/
+    sphereLeft.setAlbedoTexture(albedoTex);
+    sphereLeft.setNormalTexture(normalTex);
+    ///   sphereLeft.setMetallicTexture(metallicTex);
+    sphereLeft.setRoughnessTexture(roughnessTex);
 
     //================================================================DIRECTION LIGHT
 
-    float rotationSpeed = 50.0f;  
+    float rotationSpeed = 50.0f;
     glm::vec3 lightPos(-2.0f, 14.0f, -1.0f);
     float lightSpeed = 1.0f;
     static bool autoLightMovement = false;
-    glm::vec3 lightColor = glm::vec3(4.0f);
+    glm::vec3 lightColor = glm::vec3(1.0f);
     float ambientStrength = 0.3f;
 
     using Clock = std::chrono::steady_clock;
@@ -267,12 +202,11 @@ int main() {
         processInput(window);
 
         if (elapsed >= updateInterval){
-            if (sphere)
-                Geometry::generateSphere(0.5f, 32, 32, vertices, indices);
-            else
-                Geometry::generateCube(1.0f, vertices, indices);
-            staticmesh.UpdateGeometry(vertices, indices);
-            cube.getProceduralMesh()->UpdateGeometry(vertices, indices);
+          //  if (sphere)
+              //  Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
+        //    else
+                //Geometry::generateCube(2.0f, vertices, indices);
+
             sphere = !sphere;
             lastUpdate = now;
         }
@@ -294,15 +228,21 @@ int main() {
         lightView = glm::lookAt(lightPos, lightTarget, glm::vec3(0.0, 1.0, 0.0));
         lightSpaceMatrix = lightProjection * lightView;
 
+        floorMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
 
-        cubeMaterial.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        model1.setLightProperties(lightPos, lightColor, ambientStrength,camera.Position);
-        cube.transform.rotation.y = glfwGetTime() * rotationSpeed;
-        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);       
+        glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
         float t = (float)glfwGetTime();
 
+        glm::mat4 modelA = glm::mat4(1.0f);
+        modelA = glm::translate(modelA, glm::vec3(-1.5f, 0.0f, 2.0f));
+        modelA = glm::scale(modelA, glm::vec3(0.5f));
+        glm::mat4 modelB = glm::mat4(1.0f);
+        modelB = glm::translate(modelB, glm::vec3(0.0f, 0.0f, 2.0f));
+        modelB = glm::scale(modelB, glm::vec3(0.5f));
+        glm::mat4 modelC = glm::mat4(1.0f);
+        modelC = glm::translate(modelC, glm::vec3(1.5f, 0.0f, 2.0f));
+        modelC = glm::scale(modelC, glm::vec3(0.5f));
         const float IOR_GLASS = 1.0f / 1.52f;
         //  model1.transform.rotation.y = glfwGetTime() * rotationSpeed;
         glm::mat4 invProjection = glm::inverse(projection);
@@ -320,63 +260,66 @@ int main() {
 
         glm::vec3 directionToSun = glm::normalize(sunWorldPos);
 
-        // --- 1.pass depth map for shadow
+        // --- 1.pass depth
         //============================================================================draw shadows
         glViewport(0, 0, shadowMap.width, shadowMap.height);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         floor.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-        model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-        pbrcube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
-        //staticmesh.DrawForShadow(depthShader.ID,modelA, lightSpaceMatrix);
-
+        sphereLeft.drawForShadow(depthShader.ID, modelA, lightSpaceMatrix);
+        sphereCenter.drawForShadow(depthShader.ID, modelB, lightSpaceMatrix);
+        sphereRight.drawForShadow(depthShader.ID, modelC, lightSpaceMatrix);
         //============================================================================draw shadows
         // --- 2. pass color ---
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        //  model.playAnimationByIndex(0);
-        model.setAnimationLoopRange(3.5f, 3.55f);
-        model.updateAnimation(t);
-        model1.updateAnimation(t);
-        model.disableAnimationLoopRange();
-
-        //============================================================================draw geometry
-
         glDisable(GL_DEPTH_TEST);
         //skydome.Draw(invView, invProjection, directionToSun);
         //skybox.Draw(view, projection);
         sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
+
         glm::vec3 objPos;
         glm::vec3 lightDir;
         unsigned int cubeMap = sky.getCubeMap();
-
-        objPos     = glm::vec3(floor.transform.position);
+        objPos     = glm::vec3(modelB[3]);
         lightDir   = glm::normalize(lightPos - objPos);
-
         floor.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
-        cube.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
-        model.draw(view,projection, camera.Position);
-        model1.draw(view,projection, camera.Position);
-
-
-
-        objPos     = glm::vec3(pbrcube.transform.position);
+        // Sets the material properties for a Sphere object
+        // Parameters:
+        // glm::vec3 color          → Base color of the material (albedo, sRGB)
+        // float alpha              → Opacity (1.0 = fully opaque, 0.0 = fully transparent)
+        // float metallic           → Metalness (0.0 = non-metal/plastic, 1.0 = fully metallic)
+        // float roughness          → Surface roughness (0.0 = mirror-like, 1.0 = fully rough/matte)
+        // float ao                 → Ambient occlusion / strength of ambient light (0.0–1.0)
+        // float reflectionStrength → Strength of reflections (0.0–1.0), how much the environment map affects appearance
+        // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
+        // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
+        sphereLeft.setMaterial(glm::vec3(1.0f,0.0f,0.0f), 1.0f, 0.0f, 0.1f, 1.0f, 0.5f);
+        sphereRight.setMaterial(glm::vec3(0.08f,1.0f,0.08f), 1.0f, 1.0f, 0.3f, 0.01f, 1.0f);
+        sphereCenter.setMaterial(glm::vec3(1.0f,1.0f,1.0f), 1.0f, 1.0f, 0.1f, 1.0f, 1.0f);
+        objPos     = glm::vec3(modelA[3]);
+        lightDir   = glm::normalize(lightPos - objPos);
+        sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
+        objPos     = glm::vec3(modelB[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
-        pbrcube.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
+        sphereRight.draw(modelB, view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
+        objPos     = glm::vec3(modelC[3]);
+        lightDir   = glm::normalize(lightPos - objPos);
 
-        glDepthMask(GL_FALSE);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
+        objPos     = glm::vec3(modelA[3]);
+        lightDir   = glm::normalize(lightPos - objPos);
 
-        glDisable(GL_BLEND);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        // glEnable(GL_BLEND);
+        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // glDisable(GL_BLEND);
+        // glDepthMask(GL_TRUE);
 
         //============================================================================draw imgui
         ImGui::Render();
@@ -459,8 +402,6 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
-
-
 
 
 
