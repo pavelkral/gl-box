@@ -15,6 +15,8 @@
 #include "../glbox/Model.h"
 #include "../glbox/SceneObject.h"
 #include "../glbox/ProceduralMesh.h"
+#include "../glbox/StaticMesh.h"
+#include "../glbox/PbrMaterial.h"
 #include "../glbox/Transform.h"
 #include "../glbox/Shader.h"
 #include "../glbox/Texture.h"
@@ -74,6 +76,7 @@ int main() {
 
     //============================================================================
     //=====================================================================seetup
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
@@ -90,23 +93,11 @@ int main() {
     Shader depthShader("shaders/depth.vert", "shaders/depth.frag");
     Shader modelDepthShader("shaders/model/model_depth.vert", "shaders/model/model_depth.frag");
 
-    std::vector<std::string> faces1
-        {
-            "assets/textures/skybox/right.bmp",
-            "assets/textures/skybox/left.bmp",
-            "assets/textures/skybox/top.bmp",
-            "assets/textures/skybox/bottom.bmp",
-            "assets/textures/skybox/front.bmp",
-            "assets/textures/skybox/back.bmp"
-        };
-
     unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
     unsigned int brickTexID = Trexture::loadTexture("assets/textures/floor.png");
 
-
     std::vector<Texture> floorTextures = {{floorTexID, "texture_diffuse", "floor.png"}};
     std::vector<Texture> brickTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
-    //std::vector<Texture> modelTextures = {{brickTexID, "texture_diffuse", "fl.png"}};
 
     Material floorMaterial("shaders/material/texture.vert","shaders/material/texture.frag", floorTextures,shadowMap.texture);
     Material cubeMaterial("shaders/material/texture.vert","shaders/material/texture.frag", brickTextures,shadowMap.texture);
@@ -122,20 +113,43 @@ int main() {
     ProceduralMesh cubeMesh(vertices,indices,&cubeMaterial);
     ProceduralMesh planeMesh(vertices1,indices1,&floorMaterial);
 
+    glm::vec3 albedoColor;
+    float alpha = 1.0f;
+    float metallic = 1.0f;;
+    float roughness = 1.0f;;
+    float ao = 1.0f;;
+    float reflectionStrength = 1.0f;;
+    float transmission= 1.0f;;
+    float ior = 1.0f;;
+
+
+    PbrMaterial goldMaterial;
+    goldMaterial.metallic = 1.0f;
+    goldMaterial.roughness = 0.1f;
+    goldMaterial.setAlbedoMap(brickTexID);
+    StaticMesh dynamicQuad(vertices,indices, &goldMaterial);
+
+
     SceneObject floor(&planeMesh);
     SceneObject cube(&cubeMesh);
+
     cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
     cube.transform.scale = glm::vec3(0.5f);
     floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
 
     ProceduralSky skydome;
-    if (!skydome.Setup()) {
-        std::cerr << "err skydome." << std::endl;
-        glfwTerminate();
-        return -1;
-    }
+    skydome.Setup();
 
-    TexturedSky skybox(faces1);
+    std::vector<std::string> faces
+        {
+            "assets/textures/skybox/right.bmp",
+            "assets/textures/skybox/left.bmp",
+            "assets/textures/skybox/top.bmp",
+            "assets/textures/skybox/bottom.bmp",
+            "assets/textures/skybox/front.bmp",
+            "assets/textures/skybox/back.bmp"
+        };
+    TexturedSky skybox(faces);
     \
     HdriSky sky;
     sky.init("assets/textures/sky.hdr");
@@ -155,10 +169,10 @@ int main() {
     sphereLeft.setRoughnessTexture(roughnessTex);
 
     ModelFBX model("assets/models/Player/Player.fbx");
-    GLuint myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
-    GLuint myNormalTex = Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
-    GLuint myMetallicTex = Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
-    GLuint mySmoothnessTex = Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
+    unsigned int myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
+    unsigned int myNormalTex = Trexture::loadTexture("assets/models/Player/Textures/Player_NRM.tga");
+    unsigned int myMetallicTex = Trexture::loadTexture("assets/models/Player/Textures/Player_M.tga");
+    unsigned int mySmoothnessTex = Trexture::loadTexture("assets/models/Player/Textures/Gun_D.tga");
     model.setAlbedoTexture(myAlbedoTex,0);
     model.setNormalTexture(myNormalTex,0);
     model.setMetallicTexture(myMetallicTex,0);
@@ -171,8 +185,8 @@ int main() {
     model.transform.scale    = glm::vec3(0.01f);
 
     ModelFBX model1("assets/models/USMarines/usmarine.FBX");
-    GLuint Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
-    GLuint m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
+    unsigned int Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
+    unsigned int m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
     model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model1.setFallbackMetallic(0.1f);
     model1.setFallbackSmoothness(0.3f);
@@ -206,7 +220,8 @@ int main() {
     bool sphere = true;
 
     //===========================================================================main loop
-    //==================================================================================.
+    //==================================================================================
+
     while (!glfwWindowShouldClose(window)) {
 
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -245,7 +260,7 @@ int main() {
                 Geometry::generateSphere(1.0f, 32, 32, vertices, indices);
             else
                 Geometry::generateCube(2.0f, vertices, indices);
-
+            dynamicQuad.UpdateGeometry(vertices, indices);
             cube.mesh->UpdateGeometry(vertices, indices);
             sphere = !sphere;
             lastUpdate = now;
@@ -313,8 +328,8 @@ int main() {
         cube.DrawForShadow(depthShader.ID, lightSpaceMatrix);
         model.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
         model1.DrawForShadow(modelDepthShader.ID, lightSpaceMatrix);
-
-        sphereLeft.drawForShadow(depthShader.ID, modelA, lightSpaceMatrix);
+        dynamicQuad.DrawForShadow(depthShader.ID,modelA, lightSpaceMatrix);
+       // sphereLeft.drawForShadow(depthShader.ID, modelA, lightSpaceMatrix);
         sphereCenter.drawForShadow(depthShader.ID, modelB, lightSpaceMatrix);
         sphereRight.drawForShadow(depthShader.ID, modelC, lightSpaceMatrix);
         //============================================================================draw shadows
@@ -328,10 +343,11 @@ int main() {
         model.updateAnimation(t);
         model1.updateAnimation(t);
         model.disableAnimationLoopRange();
+
         //============================================================================draw geometry
 
         glDisable(GL_DEPTH_TEST);
-      //  skydome.Draw(invView, invProjection, directionToSun);
+        //skydome.Draw(invView, invProjection, directionToSun);
         //skybox.Draw(view, projection);
         sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
@@ -362,8 +378,8 @@ int main() {
         //glm::vec3 lightColor = glm::vec3(300.0f, 300.0f, 300.0f); //  Direct Lighting)
         objPos     = glm::vec3(modelA[3]);
         lightDir   = glm::normalize(lightPos - objPos);
-        sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,
-                        lightSpaceMatrix, lightDir,lightColor);
+        //sphereLeft.draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,
+                        //lightSpaceMatrix, lightDir,lightColor);
         objPos     = glm::vec3(modelB[3]);
         lightDir   = glm::normalize(lightPos - objPos);
 
@@ -374,6 +390,10 @@ int main() {
 
         sphereCenter.draw(modelC, view, projection, camera.Position, cubeMap, shadowMap.texture,
                           lightSpaceMatrix, lightDir,lightColor);
+        objPos     = glm::vec3(modelA[3]);
+        lightDir   = glm::normalize(lightPos - objPos);
+        dynamicQuad.Draw(modelA, view, projection, camera.Position, cubeMap, shadowMap.texture,
+                         lightSpaceMatrix, lightDir,lightColor);
 
        // glDepthMask(GL_FALSE);
        // glEnable(GL_BLEND);
@@ -397,10 +417,9 @@ int main() {
 }
 
 
-//============================================================================input functiona
+//===================================input functiona==========================================
 //////////////////////////////////////////////////////////////////////////////////////////////
-/// \brief processInput
-/// \param window
+
 
 void processInput(GLFWwindow *window) {
 

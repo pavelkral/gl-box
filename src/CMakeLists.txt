@@ -88,6 +88,8 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/ecs.h
     samples/tesselation.h
     glbox/geometry/Geometry.h
+    glbox/StaticMesh.h
+    glbox/PbrMaterial.h
 )
 
 if(WIN32)
