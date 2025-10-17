@@ -9,7 +9,7 @@
 #include <iostream>
 #include <string>
 #include "stb_image.h"
-
+#include "Shader.h"
 
 const char* equirectToCubemapVS = R"glsl(
 #version 330 core
@@ -100,29 +100,6 @@ public:
 unsigned int HdriSky::cubeVAO = 0;
 unsigned int HdriSky::cubeVBO = 0;
 
-
-inline unsigned int HdriSky::createShader(const char* vs, const char* fs)
-{
-    unsigned int vertex = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex, 1, &vs, NULL); glCompileShader(vertex);
-    int success; char info[512];
-    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success); if (!success) {
-        glGetShaderInfoLog(vertex, 512, NULL, info); std::cout << "Vertex: " << info << "\n"; }
-
-    unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(frag, 1, &fs, NULL); glCompileShader(frag);
-    glGetShaderiv(frag, GL_COMPILE_STATUS, &success); if (!success) {
-        glGetShaderInfoLog(frag, 512, NULL, info); std::cout << "Fragment: " << info << "\n"; }
-
-    unsigned int program = glCreateProgram(); glAttachShader(program, vertex);
-    glAttachShader(program, frag); glLinkProgram(program);
-    glGetProgramiv(program, GL_LINK_STATUS, &success); if (!success) {
-        glGetProgramInfoLog(program, 512, NULL, info); std::cout << "Link: " << info << "\n"; }
-
-    glDeleteShader(vertex); glDeleteShader(frag);
-    return program;
-}
-
 inline void HdriSky::renderCube()
 {
     if (cubeVAO == 0)
@@ -163,17 +140,20 @@ inline void HdriSky::renderCube()
 inline void HdriSky::init(const std::string& hdrPath)
 {
 
-    equirectToCubemapShader = createShader(equirectToCubemapVS, equirectToCubemapFS);
-    skyboxShader = createShader(skyboxVS, skyboxFS);
+    Shader shaderProgram(equirectToCubemapVS, equirectToCubemapFS, true);
+    equirectToCubemapShader = shaderProgram.ID;
+    Shader shaderProgram1(skyboxVS, skyboxFS, true);
+    skyboxShader = shaderProgram1.ID;
 
     // Nastavení samplerů
     glUseProgram(equirectToCubemapShader);
-    glUniform1i(glGetUniformLocation(equirectToCubemapShader, "equirectangularMap"), 0);
+    glUniform1i(
+        glGetUniformLocation(equirectToCubemapShader, "equirectangularMap"), 0);
     glUseProgram(skyboxShader);
     glUniform1i(glGetUniformLocation(skyboxShader, "environmentMap"), 0);
     stbi_set_flip_vertically_on_load(true);
     int width, height, nrComponents;
-    float* data = stbi_loadf(hdrPath.c_str(), &width, &height, &nrComponents, 0);
+    float *data = stbi_loadf(hdrPath.c_str(), &width, &height, &nrComponents, 0);
     if (!data) {
         std::cout << "Failed to load HDRI: " << hdrPath << "\n";
         return;

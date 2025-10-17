@@ -48,7 +48,7 @@ public:
     }
 
     // ============================================
-    // Standardní 2D texture loader (stb_image)
+    // 2D texture loader (stb_image)
     // ============================================
     static unsigned int loadTexture(const char* path) {
         unsigned int textureID;

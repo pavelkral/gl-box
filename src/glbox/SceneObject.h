@@ -2,7 +2,7 @@
 #define SCENEOBJECT_H
 
 #include "Transform.h"
-#include "ProceduralMesh.h"
+//#include "ProceduralMesh.h"
 #include "StaticMesh.h"
 #include "Model.h"
 
@@ -12,7 +12,7 @@
 class SceneObject {
 
 private:
-    ProceduralMesh* mesh = nullptr;
+
     StaticMesh* statiMesh = nullptr;
     ModelFBX* model = nullptr;
 
@@ -21,22 +21,17 @@ public:
 
     SceneObject() = default;
 
-    SceneObject(ProceduralMesh* mesh) : mesh(mesh) {}
-
     SceneObject(StaticMesh* statiMesh) : statiMesh(statiMesh) {}
 
     SceneObject(ModelFBX* model) : model(model) {}
 
-    SceneObject(const Transform& initialTransform, ProceduralMesh* pMesh = nullptr, StaticMesh* sMesh = nullptr, ModelFBX* fbxModel = nullptr)
-        : transform(initialTransform), mesh(pMesh), statiMesh(sMesh), model(fbxModel) {}
+    SceneObject(const Transform& initialTransform,StaticMesh* sMesh = nullptr, ModelFBX* fbxModel = nullptr)
+        : transform(initialTransform),  statiMesh(sMesh), model(fbxModel) {}
 
-    ProceduralMesh* getProceduralMesh() const { return mesh; }
     StaticMesh* getStaticMesh() const { return statiMesh; }
     ModelFBX* getModel() const { return model; }
 
-    void setProceduralMesh(ProceduralMesh* newMesh) {
-        mesh = newMesh;
-    }
+
     void setStaticMesh(StaticMesh* newStatiMesh) {
         statiMesh = newStatiMesh;
     }
@@ -48,9 +43,8 @@ public:
               const glm::vec3& cameraPos, unsigned int envCubemap, unsigned int shadowMap,
               const glm::mat4& lightSpaceMatrix, const glm::vec3& lightDir, const glm::vec3& lightCol) const {
           const glm::mat4 modelMatrix = transform.GetModelMatrix();
-        if (mesh) {
-            mesh->Draw(modelMatrix, view, proj, lightSpaceMatrix);
-        } else if (statiMesh) {
+
+        if (statiMesh) {
             statiMesh->Draw(modelMatrix, view, proj,
                              cameraPos,envCubemap,shadowMap,
                              lightSpaceMatrix, lightDir, lightCol);
@@ -66,11 +60,7 @@ public:
         glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
         glUniformMatrix4fv(glGetUniformLocation(depthShaderID, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 
-        if (mesh) {
-            glBindVertexArray(mesh->VAO);
-            glDrawElements(GL_TRIANGLES, mesh->vertexCount, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        } else if (statiMesh) {
+        if (statiMesh) {
             statiMesh->DrawForShadow(depthShaderID, modelMatrix, lightSpaceMatrix);
         } else if (model) {
             model->DrawForShadow(depthShaderID, lightSpaceMatrix);

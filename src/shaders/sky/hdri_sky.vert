@@ -1,19 +1,24 @@
 #version 330 core
-layout(location=0) in vec3 aPos;
-layout(location=5) in ivec4 aBoneIDs;
-layout(location=6) in vec4 aWeights;
+//equirectToCubemapVS
+layout (location = 0) in vec3 aPos;
+out vec3 WorldPos;
+uniform mat4 projection;
+uniform mat4 view;
+void main()
+{
+    WorldPos = aPos;
+    gl_Position = projection * view * vec4(aPos, 1.0);
+}
 
-uniform mat4 model;
-uniform mat4 lightSpaceMatrix;
-uniform mat4 uBones[100];
-
-void main() {
-    mat4 skinMat = mat4(0.0);
-    skinMat += aWeights.x * uBones[aBoneIDs.x];
-    skinMat += aWeights.y * uBones[aBoneIDs.y];
-    skinMat += aWeights.z * uBones[aBoneIDs.z];
-    skinMat += aWeights.w * uBones[aBoneIDs.w];
-
-    vec4 skinnedPos = skinMat * vec4(aPos,1.0);
-    gl_Position = lightSpaceMatrix * model * skinnedPos;
+#version 330 core
+//skyboxVS
+layout (location = 0) in vec3 aPos;
+out vec3 TexCoords;
+uniform mat4 view;
+uniform mat4 projection;
+void main()
+{
+    TexCoords = aPos;
+    vec4 pos = projection * mat4(mat3(view)) * vec4(aPos, 1.0);
+    gl_Position = pos.xyww;
 }

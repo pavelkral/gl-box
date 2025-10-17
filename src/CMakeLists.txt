@@ -58,19 +58,19 @@ include_directories(
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     glbox/Transform.h
-    glbox/Material.h
-    glbox/ProceduralMesh.h
+
+
     glbox/SceneObject.h
     glbox/Model.h
     glbox/Camera.h
     glbox/Shader.h
-
-
     glbox/Texture.h
     glbox/ProceduralSky.h
     glbox/TexturedSky.h
     glbox/HdriSky.h
-    glbox/geometry/Sphere.h
+    glbox/geometry/Geometry.h
+    glbox/StaticMesh.h
+    glbox/PbrMaterial.h
     glbox/Types.h
 
     #samples/old/cubes.h
@@ -87,10 +87,10 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/geometryshader.h
     samples/ecs.h
     samples/tesselation.h
-    glbox/geometry/Geometry.h
-    glbox/StaticMesh.h
-    glbox/PbrMaterial.h
+
     samples/pbr.h
+    samples/objects/Sphere.h
+
 )
 
 if(WIN32)

@@ -28,8 +28,8 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
 
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 720;
+const unsigned int SCR_WIDTH = 1920;
+const unsigned int SCR_HEIGHT = 1080;
 bool cursorEnabled = false;
 bool keyLWasPressed = false;
 Camera camera(glm::vec3(0.0f, 3.0f, 8.0f));
@@ -113,9 +113,10 @@ int main() {
     std::vector<unsigned int> indices1;
     std::vector<float> vertices2;
     std::vector<unsigned int> indices2;
+
     Geometry::generatePlane(100.0f, 100.0f, 10, 10, 100.0f, 100.0f, vertices1,indices1);
     Geometry::generateCube(1.0f, vertices, indices);
-    Geometry::generateSphere(1.0f, 32, 32, vertices2, indices2);
+    Geometry::generateSphere(0.5f, 32, 32, vertices2, indices2);
 
     unsigned int floorTexID = Trexture::loadTexture("assets/textures/floor.png");
     unsigned int floorTexNormID = Trexture::loadTexture("assets/textures/floorN.png");
@@ -136,7 +137,7 @@ int main() {
     // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
     // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
 
-    glm::vec3 albedoColor;
+    glm::vec3 albedoColor = glm::vec3(0.0f, 0.5f, 2.0f);
     float alpha = 1.0f;
     float metallic = 1.0f;;
     float roughness = 1.0f;;
@@ -148,9 +149,9 @@ int main() {
     PbrMaterial goldMaterial;
     goldMaterial.metallic = 1.0f;
     goldMaterial.roughness = 0.4f;
-    goldMaterial.setAlbedoMap( albedoTex);
-    goldMaterial.setNormalMap(normalTex );
-    goldMaterial.setMetallicMap(metallicTex);
+   // goldMaterial.setAlbedoMap( albedoTex);
+   // goldMaterial.setNormalMap(normalTex );
+   // goldMaterial.setMetallicMap(metallicTex);
 
     PbrMaterial goldMaterial1;
     goldMaterial1.metallic = 1.0f;
@@ -163,8 +164,8 @@ int main() {
 
     StaticMesh staticmesh(vertices,indices, &goldMaterial);
     SceneObject pbrcube(&staticmesh);
-    pbrcube.transform.scale = glm::vec3(0.5f);
-    pbrcube.transform.position = glm::vec3(0.0f, 0.5f, 2.0f);
+    pbrcube.transform.scale = glm::vec3(1.5f);
+    pbrcube.transform.position = glm::vec3(1.0f, 0.5f, 2.0f);
 
     StaticMesh planeMesh(vertices1,indices1,&goldMaterial1);
     SceneObject floor(&planeMesh);
@@ -172,8 +173,8 @@ int main() {
 
     StaticMesh cubeMesh1(vertices2,indices2,&goldMaterial1);
     SceneObject cube(&cubeMesh1);
-    cube.transform.position = glm::vec3(0.0f, 0.5f, 0.0f);
-    cube.transform.scale = glm::vec3(0.5f);
+    cube.transform.position = glm::vec3(-1.0f, 0.5f, 2.0f);
+    cube.transform.scale = glm::vec3(1.5f);
 
     ModelFBX model("assets/models/Player/Player.fbx");
     unsigned int myAlbedoTex = Trexture::loadTexture("assets/models/Player/Textures/Player_D.tga");
@@ -185,11 +186,12 @@ int main() {
     model.setMetallicTexture(myMetallicTex,0);
     model.setAlbedoTexture(mySmoothnessTex,1);
     model.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
-    model.setFallbackMetallic(0.1f);
+    model.setFallbackMetallic(1.1f);
     model.setFallbackSmoothness(0.3f);
     model.transform.position = glm::vec3(3.0f, -0.5f, 0.0f);
     model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
+    SceneObject soldier1(&model);
 
     ModelFBX model1("assets/models/USMarines/usmarine.FBX");
     unsigned int Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
@@ -203,6 +205,7 @@ int main() {
     model1.transform.scale    = glm::vec3(0.012f);
     model1.setAlbedoTexture(m16,1);
     model1.setAlbedoTexture(Marine,0);
+    SceneObject soldier(&model);
     //for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
     //model1.stopAnimation();
     // model.stopAnimation();
@@ -223,7 +226,7 @@ int main() {
 
     using Clock = std::chrono::steady_clock;
     auto lastUpdate = Clock::now();
-    const std::chrono::seconds updateInterval(5);
+    const std::chrono::seconds updateInterval(10);
     bool sphere = true;
 
     //===========================================================================main loop
@@ -243,6 +246,7 @@ int main() {
         ImGui::NewFrame();
         ImGui::Begin("Scene settings");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+
         if (ImGui::Button("Change cube rotation direction")) {
             rotationSpeed *= -1.0f;
         }
@@ -252,13 +256,25 @@ int main() {
         ImGui::SliderFloat("Light X", &lightPos.x, -40.0f, 40.0f);
         ImGui::SliderFloat("Light Y", &lightPos.y, 0.0f, 40.0f);
         ImGui::SliderFloat("Light Z", &lightPos.z, -40.0f, 40.0f);
+
         ImGui::Separator();
         ImGui::Text("Light settings");
         ImGui::ColorEdit3("Light color", glm::value_ptr(lightColor));
         ImGui::SliderFloat("Ambient strength", &ambientStrength, 0.0f, 1.0f);
         ImGui::Checkbox("Auto light movement", &autoLightMovement);
-        ImGui::End();
 
+        ImGui::Separator();
+        ImGui::Text("Gold Material Parameters");
+        ImGui::ColorEdit3("Albedo Color", glm::value_ptr(albedoColor));
+        ImGui::SliderFloat("Alpha (Opacity)", &alpha, 0.0f, 1.0f);
+        ImGui::SliderFloat("Metallic", &metallic, 0.0f, 1.0f);
+        ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+        ImGui::SliderFloat("Ambient Occlusion", &ao, 0.0f, 1.0f);
+        ImGui::SliderFloat("Reflection Strength", &reflectionStrength, 0.0f, 1.0f);
+        ImGui::SliderFloat("Transmission", &transmission, 0.0f, 1.0f);
+        ImGui::SliderFloat("Index of Refraction (IOR)", &ior, 1.0f, 2.5f);
+
+        ImGui::End();
         //============================================================================input
         processInput(window);
 
@@ -267,8 +283,10 @@ int main() {
                 Geometry::generateSphere(0.5f, 32, 32, vertices, indices);
             else
                 Geometry::generateCube(1.0f, vertices, indices);
+
             staticmesh.UpdateGeometry(vertices, indices);
             cubeMesh1.UpdateGeometry(vertices, indices);
+
             sphere = !sphere;
             lastUpdate = now;
         }
@@ -339,12 +357,13 @@ int main() {
         model1.updateAnimation(t);
         model.disableAnimationLoopRange();
 
+        goldMaterial.setParameters(albedoColor, alpha, metallic, roughness, ao, reflectionStrength, transmission, ior);
         //============================================================================draw geometry
 
         glDisable(GL_DEPTH_TEST);
         //skydome.Draw(invView, invProjection, directionToSun);
-        //skybox.Draw(view, projection);
-        sky.draw(view, projection);
+        skybox.Draw(view, projection);
+        //sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 
         glm::vec3 objPos;

@@ -20,7 +20,7 @@
 #include "../glbox/ProceduralSky.h"
 #include "../glbox/TexturedSky.h"
 #include "../glbox/HdriSky.h"
-#include "../glbox/geometry/Sphere.h"
+#include "../samples/objects/Sphere.h"
 #include "../glbox/geometry/Geometry.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);

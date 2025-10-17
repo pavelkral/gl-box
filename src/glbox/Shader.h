@@ -87,12 +87,7 @@ public:
     ~Shader(){
 
     }
-    void createProgram(const char *vertexPath,
-                       const char *fragmentPath){
 
-        //return program;
-        //ID = program;
-    }
     Shader(const char* vertexSource, const char* fragmentSource,bool st) {
         unsigned int vertex, fragment;
 

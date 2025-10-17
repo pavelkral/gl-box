@@ -1,10 +1,11 @@
 #ifndef PROCEDURALSKY_H
 #define PROCEDURALSKY_H
 
+#include "Shader.h"
+
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <iostream>
 
 
 const char *vertexShaderSource = R"(
@@ -82,12 +83,8 @@ class ProceduralSky {
 public:
 
     bool Setup() {
-        m_skyShader = compile_shaders(vertexShaderSource, fragmentShaderSource);
-
-        if (m_skyShader == 0) {
-            std::cerr << "Nepodarilo se zkompilovat Skydome shadery." << std::endl;
-            return false;
-        }
+        Shader shaderProgram1(vertexShaderSource, fragmentShaderSource,true);
+        m_skyShader  = shaderProgram1.ID;
 
         // Vytvoření VAO. Protože geometrie je generována ve vertex shaderu pomocí
         // gl_VertexID, nepotřebujeme VBO, ale VAO je stále nutné.
@@ -131,37 +128,6 @@ private:
     unsigned int m_skyShader = 0;
     unsigned int m_skyVAO = 0;
 
-    unsigned int compile_shaders(const char *vertSource, const char *fragSource) {
-        unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, 1, &vertSource, NULL);
-        glCompileShader(vertexShader);
-
-        unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, 1, &fragSource, NULL);
-        glCompileShader(fragmentShader);
-
-        unsigned int shaderProgram = glCreateProgram();
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragmentShader);
-        glLinkProgram(shaderProgram);
-
-
-        int success;
-        char infoLog[512];
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        if (!success) {
-            glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-            std::cerr << "CHYBA::SKYDOMESHADER::LINKOVANI_SE_NEZDARILO\n"
-                      << infoLog << std::endl;
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
-            return 0;
-        }
-
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
-        return shaderProgram;
-    }
 };
 
 #endif // PROCEDURALSKY_H

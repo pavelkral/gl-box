@@ -186,6 +186,7 @@ void main()
     float shadow = ShadowCalculation(FragPosLightSpace, N, L);
     vec3 directLight = (kD * diffuse / PI + specular) * max(dot(N,L),0.0) * (1.0 - shadow) * lightColor;
 
+    // --- Image-based lighting (IBL) ---
     vec3 R = reflect(-V, N);
     vec3 prefilteredColor = textureLod(environmentMap, R, roughnessVal * MAX_REFLECTION_LOD).rgb;
     vec3 F_env = fresnelSchlick(max(dot(N, V), 0.0), F0);
@@ -198,6 +199,7 @@ void main()
 
 
 class PbrMaterial {
+
 public:
     unsigned int shaderProgramID;
 
