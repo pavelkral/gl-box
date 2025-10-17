@@ -361,8 +361,9 @@ int main() {
         //============================================================================draw geometry
 
         glDisable(GL_DEPTH_TEST);
-        //skydome.Draw(invView, invProjection, directionToSun);
-        skybox.Draw(view, projection);
+        float time1 = static_cast<float>(glfwGetTime());
+        skydome.Draw(invView, invProjection, directionToSun,time1);
+        //skybox.Draw(view, projection);
         //sky.draw(view, projection);
         glEnable(GL_DEPTH_TEST);
 

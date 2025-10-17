@@ -15,7 +15,6 @@ class Shader
 public:
 
     // void setBool(const std::string &name, bool value);
-    // void setInt(const std::string &name, int value);
     // void setFloat(const std::string &name, float value);
     // void setVec2(const std::string &name, const glm::vec2 &value);
     // void setVec2(const std::string &name, float x, float y);

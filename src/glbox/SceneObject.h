@@ -2,7 +2,6 @@
 #define SCENEOBJECT_H
 
 #include "Transform.h"
-//#include "ProceduralMesh.h"
 #include "StaticMesh.h"
 #include "Model.h"
 
@@ -11,13 +10,11 @@
 
 class SceneObject {
 
-private:
+public:
 
+    Transform transform;
     StaticMesh* statiMesh = nullptr;
     ModelFBX* model = nullptr;
-
-public:
-    Transform transform;
 
     SceneObject() = default;
 
