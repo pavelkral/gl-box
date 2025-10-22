@@ -137,13 +137,13 @@ int main() {
     // float transmission       → Transparency for refraction/glass (0.0 = none, 1.0 = fully transparent)
     // float indexOfRefraction  → Index of refraction for transparent materials (glass), default 1.52
 
-    glm::vec3 albedoColor = glm::vec3(0.0f, 0.5f, 2.0f);
+    glm::vec3 albedoColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float alpha = 1.0f;
     float metallic = 1.0f;;
-    float roughness = 1.0f;;
+    float roughness = 0.1f;;
     float ao = 1.0f;;
     float reflectionStrength = 1.0f;;
-    float transmission= 1.0f;;
+    float transmission= 0.0f;;
     float ior = 1.0f;;
 
     PbrMaterial goldMaterial;
@@ -162,7 +162,7 @@ int main() {
     goldMaterial1.setNormalMap(floorTexNormID);
     goldMaterial1.setMetallicMap(floorTexRoughID);
 
-    StaticMesh staticmesh(vertices,indices, &goldMaterial);
+    StaticMesh staticmesh(vertices2,indices2, &goldMaterial);
     SceneObject pbrcube(&staticmesh);
     pbrcube.transform.scale = glm::vec3(1.5f);
     pbrcube.transform.position = glm::vec3(1.0f, 0.5f, 2.0f);
