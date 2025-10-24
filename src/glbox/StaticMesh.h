@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "PbrMaterial.h"
-
+#include "physics/Raycast.h"
 class StaticMesh {
 
 public:
@@ -17,6 +17,7 @@ public:
     std::vector<unsigned int> indices;
 
     PbrMaterial* material;
+    BoxCollider localAABB;
 
     static constexpr int VERTEX_STRIDE = 11;
     static constexpr int INPUT_STRIDE = 8;
@@ -83,7 +84,7 @@ public:
             indexCount = 0;
             return;
         }
-
+        this->localAABB.CalculateFromVertices(inputVertices, INPUT_STRIDE);
         // COPY (Stride 8) a transforma (Stride 11)
         this->vertices = inputVertices;
         this->indices = inputIndices;
