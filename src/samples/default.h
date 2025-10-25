@@ -33,33 +33,21 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
 
-/**
- * Toto je tvá nová, rychlá funkce pro raycasting.
- */
-/**
- * Provede raycast proti scéně reprezentované Octree.
- * @param ray Paprsek (ve world-space).
- * @param sceneOctree Konstantní reference na Octree scény.
- * @param modelMatrices Konstantní reference na mapu modelových matic.
- * @param outHit Výstupní struktura pro výsledek nejbližšího zásahu.
- * @return True, pokud byl jakýkoliv objekt zasažen, jinak false.
- */
 bool PerformRaycast(const Ray& ray,
-                    const Octree& sceneOctree, // <-- Přidáno jako const reference
-                    const std::map<StaticMesh*, glm::mat4>& modelMatrices, // <-- Přidáno jako const reference
+                    const Octree& sceneOctree,
+                    const std::map<StaticMesh*, glm::mat4>& modelMatrices,
                     RaycastHit& outHit)
 {
-    // Resetujeme výsledek
     outHit.hit = false;
     outHit.distance = FLT_MAX;
     outHit.object = nullptr;
 
     // 1. Získáme ze stromu jen relevantní objekty
     std::vector<StaticMesh*> potentialHits;
-    sceneOctree.Query(ray, potentialHits); // <-- Používáme parametr
+    sceneOctree.Query(ray, potentialHits);
 
     if (potentialHits.empty()) {
-        return false; // Paprsek netrefil žádný AABB
+        return false;
     }
 
     // 2. Teď provedeme test "brute-force", ALE UŽ JEN NA TĚCH PÁR KANDIDÁTECH
@@ -69,7 +57,7 @@ bool PerformRaycast(const Ray& ray,
         auto it = modelMatrices.find(mesh);
         if (it == modelMatrices.end()) {
             // Tento mesh nemá z nějakého důvodu matici v mapě, přeskočíme ho
-            std::cerr << "CHYBA: Raycast nenašel modelovou matici pro mesh!" << std::endl;
+            std::cerr << "err: Raycast not find matrix for mesh!" << std::endl;
             continue;
         }
 
@@ -234,16 +222,16 @@ int main() {
     goldMaterial1.setNormalMap(floorTexNormID);
     goldMaterial1.setMetallicMap(floorTexRoughID);
 
-    StaticMesh staticmesh(vertices2,indices2, &goldMaterial);
+    StaticMesh staticmesh(vertices2,indices2, &goldMaterial,"cube1");
     SceneObject pbrcube(&staticmesh);
     pbrcube.transform.scale = glm::vec3(1.5f);
     pbrcube.transform.position = glm::vec3(1.0f, 0.5f, 2.0f);
 
-    StaticMesh planeMesh(vertices1,indices1,&goldMaterial1);
+    StaticMesh planeMesh(vertices1,indices1,&goldMaterial1,"floor");
     SceneObject floor(&planeMesh);
     floor.transform.position = glm::vec3(0.0f, -0.5f, 0.0f);
 
-    StaticMesh cubeMesh1(vertices2,indices2,&goldMaterial1);
+    StaticMesh cubeMesh1(vertices2,indices2,&goldMaterial1,"cube2");
     SceneObject cube(&cubeMesh1);
     cube.transform.position = glm::vec3(-1.0f, 0.5f, 2.0f);
     cube.transform.scale = glm::vec3(1.5f);
@@ -287,7 +275,9 @@ int main() {
     //     //std::cout << val << " ";
     // }/
 
-    //================================================================DIRECTION LIGHT
+    //===============================================================================================
+    //DIRECTION LIGHT
+    //===============================================================================================
 
     float rotationSpeed = 50.0f;  
     glm::vec3 lightPos(-2.0f, 14.0f, -1.0f);
@@ -302,34 +292,32 @@ int main() {
     bool sphere = true;
 
     //===============================================================================================
+    //!Physics
+    //===============================================================================================
+
     std::vector<StaticMesh*> allMeshes;
     allMeshes.emplace_back(&planeMesh);
     allMeshes.emplace_back(&cubeMesh1);
     allMeshes.emplace_back(&staticmesh);
 
-    // Vytvoření a inicializace mapy s maticemi
+    // Initial model matrices (static objects)
     std::map<StaticMesh*, glm::mat4> modelMatrices;
-
-    // 1. Definuj ZÁKLADNÍ transformace a ulož je do mapy
-    // Pozn.: Pro cubemeshe1 a staticmesh (ta co se hýbe) nastav ty polohy,
-    // které mají mít při spuštění.
-    modelMatrices[&planeMesh] = glm::mat4(1.0f); // Jednotková matice pro podlahu/plane
+    modelMatrices[&planeMesh] = glm::mat4(1.0f);
     modelMatrices[&cubeMesh1] = glm::translate(glm::mat4(1.0f), glm::vec3(-5.0f, 0.5f, 0.0f));
     modelMatrices[&staticmesh] = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 0.5f, 0.0f));
 
-    // 2. Sestavení Octree (BuildSceneOctree by byla lepší volba, ale teď to necháme inline)
+    // Initialize Octree and AABB map, which will be UPDATED in the main loop
     Octree sceneOctree(BoxCollider(glm::vec3(0.0f), glm::vec3(0.0f)));
     std::map<StaticMesh*, BoxCollider> allWorldAABBs;
 
-    // Zde už mapa modelMatrices NENÍ prázdná a Octree se sestaví správně
+    // Initial Octree build (Will be overwritten in the first loop iteration, but it's good to have it)
     for (StaticMesh* mesh : allMeshes) {
         const glm::mat4& modelMatrix = modelMatrices[mesh];
         BoxCollider worldAABB = mesh->localAABB.GetTransformed(modelMatrix);
         allWorldAABBs[mesh] = worldAABB;
     }
-
     sceneOctree.Build(allWorldAABBs);
-    std::cout << "Octree builed!" << std::endl;
+    std::cout << "Initial Octree built!" << std::endl;
     DebugDraw debugDrawer;
 
     //===========================================================================main loop
@@ -381,10 +369,13 @@ int main() {
         //============================================================================input
         processInput(window);
 
+        // --- 1. Update geometry and Local AABB for oscillating objects ---
         if (elapsed >= updateInterval){
             if (sphere)
+                // Changing to a sphere updates localAABB within UpdateGeometry
                 Geometry::generateSphere(0.5f, 32, 32, vertices, indices);
             else
+                // Changing to a cube updates localAABB within UpdateGeometry
                 Geometry::generateCube(1.0f, vertices, indices);
 
             staticmesh.UpdateGeometry(vertices, indices);
@@ -393,19 +384,31 @@ int main() {
             sphere = !sphere;
             lastUpdate = now;
         }
+
+        // --- 2. Update World AABB and rebuild Octree for dynamic/changing objects ---
+        // Recalculate new World AABBs for all meshes (using the current localAABB)
+        allWorldAABBs.clear();
+        for (StaticMesh* mesh : allMeshes) {
+            // The current model matrix would be obtained here if the object were moving (rotation/translation)
+            const glm::mat4& modelMatrix = modelMatrices[mesh];
+            // LocalAABB for the mesh is current if we call UpdateGeometry
+            BoxCollider worldAABB = mesh->localAABB.GetTransformed(modelMatrix);
+            allWorldAABBs[mesh] = worldAABB;
+        }
+        // Rebuild the Octree with new AABBs
+        sceneOctree.Build(allWorldAABBs);
+        // Note: If the object were also MOVING (e.g., rotation), modelMatrices[mesh] would also need to be updated before this step.
+        // Set rayLength to 20.0f, as you tested
+        float rayLength = 20.0f;
+        Ray myRay(camera.Position, camera.Front);
+        RaycastHit hitResult;
+
         if (autoLightMovement) {
             lightPos.x = sin(glfwGetTime() * lightSpeed) * 3.0f;
             lightPos.z = cos(glfwGetTime() * lightSpeed) * 3.0f;
         }
 
         glm::mat4 projection =glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-        // Nastavíme rayLength na 20.0f, jak jste testoval
-        float rayLength = 20.0f;
-        Ray myRay(camera.Position, camera.Front);
-        RaycastHit hitResult;
-        //===============================================================================================
-        // Zde probíhá POUZE výpočet raycastu, kreslení přesouváme níže!
-        //===============================================================================================
         glm::mat4 lightProjection, lightView;
         glm::mat4 lightSpaceMatrix;
         float near_plane = 1.0f, far_plane = 50.0f;
@@ -501,60 +504,97 @@ int main() {
         glDisable(GL_BLEND);
         glDepthMask(GL_TRUE);
 
-        //============================================================================DRAW DEBUG LINES (NEW LOCATION)
-        // Kreslení se provádí TADY, po vyčištění bufferu a vykreslení scény.
+        //===============================================================================================
+        //!Physics DRAW DEBUG LINES (NEW LOCATION)
+        //===============================================================================================
 
-        // Zakázat testování hloubky, aby byly debug čáry vždy viditelné před geometrií.
         glDisable(GL_DEPTH_TEST);
 
-        // --- TESTovací čára pro ověření funkčnosti DebugDraweru (ŽLUTÁ) ---
-        // Tuto čáru byste měl vidět.
         debugDrawer.DrawLine(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f), view, projection);
 
-        // --- DYNAMICKÁ TESTovací čára (MODRÁ, KRESLENÁ NAHORU) ---
-        // Nyní kreslíme čáru kolmo k pohledu, abychom zaručili viditelnost.
+        const float visualizationOffset = 0.05f; // Small offset so the line is not aligned to a single pixel
         glm::vec3 drawStartPoint = myRay.origin + myRay.direction * 1.0f;
-        // Cíl posunutý o 0.5f nahoru ve world space od startovního bodu.
-        glm::vec3 dynamicTestPoint = drawStartPoint + camera.Up * 0.5f;
-        debugDrawer.DrawLine(drawStartPoint, dynamicTestPoint, glm::vec3(0.0f, 0.0f, 1.0f), view, projection);
+        // Add a small perpendicular offset to the view so the line is visible (simulating thickness)
+        drawStartPoint += camera.Right * visualizationOffset;
+        drawStartPoint += camera.Up * visualizationOffset;
 
-        std::cout << "Dynamický startovní bod: " << glm::to_string(drawStartPoint)
-                  << ", Zkušební bod (modrý, 0.5f nahoru): " << glm::to_string(dynamicTestPoint) << std::endl;
-
-        // --- Kreslení Raycast Debug Čáry (ČERVENÁ/ZELENÁ) ---
+        // Use the freshly rebuilt Octree for raycasting
         if (PerformRaycast(myRay, sceneOctree, modelMatrices, hitResult)) {
-            // Raycast našel objekt. Nyní zkontrolujeme, zda je v požadovaném dosahu.
+            // Raycast found an object. Now check if it's within the required range.
             if (hitResult.distance < rayLength) {
-                // Skutečný zásah v dosahu (Kreslíme zeleně k bodu zásahu)
-                glm::vec3 hitColor = glm::vec3(0.0f, 1.0f, 0.0f); // Zelená pro zásah
-                // Kreslíme čáru od posunutého startovního bodu (drawStartPoint) k bodu zásahu (hitResult.point)
+                // Actual hit within range (Draw green to the hit point)
+                glm::vec3 hitColor = glm::vec3(0.0f, 1.0f, 0.0f); // Green for hit
+                // Draw the line from the offset start point (drawStartPoint) to the hit point (hitResult.point)
                 debugDrawer.DrawLine(drawStartPoint, hitResult.point, hitColor, view, projection);
-                std::cout << "Hit! Objekt: " << hitResult.object << ", Lenght: " << hitResult.distance
-                          << ", Start: " << glm::to_string(drawStartPoint)
-                          << ", Hit: " << glm::to_string(hitResult.point) << std::endl;
+                std::cout << "Hit! Objekt: " << hitResult.object->meshname << ", Lenght: " << hitResult.distance
+                              << ", Start: " << glm::to_string(drawStartPoint)
+                              << ", Hit: " << glm::to_string(hitResult.point) << std::endl;
+
             } else {
-                // Zásah proběhl, ale je příliš daleko (Kreslíme červeně jen do max. délky)
-                // Koncový bod raycastu, začíná od myRay.origin, ale kreslí se od drawStartPoint
+                // Hit occurred, but it's too far (Draw red only up to max length)
+                // End point of the raycast, starting from myRay.origin, but drawing from drawStartPoint
                 glm::vec3 endPoint = myRay.origin + myRay.direction * rayLength;
-                glm::vec3 missColor = glm::vec3(1.0f, 0.0f, 0.0f); // Červená pro miss (příliš daleko)
-                // Kreslíme čáru od posunutého startovního bodu (drawStartPoint) k maximálnímu bodu (endPoint)
+                glm::vec3 missColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red for miss (too far)
+                // Draw the line from the offset start point (drawStartPoint) to the maximum point (endPoint)
                 debugDrawer.DrawLine(drawStartPoint, endPoint, missColor, view, projection);
                 std::cout << "Miss (Too far). Ray end at: " << glm::to_string(endPoint)
-                          << ". Nearest object at: " << hitResult.distance
-                          << ", Start: " << glm::to_string(drawStartPoint) << std::endl;
+                              << ". Nearest object at: " << hitResult.distance
+                              << ", Start: " << glm::to_string(drawStartPoint) << std::endl;
+
             }
         }
         else {
-            // Celkový Miss: Čáru kreslíme na celou délku paprsku (červeně)
+            // Total Miss: Draw the line for the full ray length (red)
             glm::vec3 endPoint = myRay.origin + myRay.direction * rayLength;
-            glm::vec3 missColor = glm::vec3(1.0f, 0.0f, 0.0f); // Červená pro miss
-            // Kreslíme čáru od posunutého startovního bodu (drawStartPoint) k maximálnímu bodu (endPoint)
+            glm::vec3 missColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red for miss
+            // Draw the line from the offset start point (drawStartPoint) to the maximum point (endPoint)
             debugDrawer.DrawLine(drawStartPoint, endPoint, missColor, view, projection);
             std::cout << "Miss. Ray end at: " << glm::to_string(endPoint)
-                      << ", Start: " << glm::to_string(drawStartPoint) << std::endl;
+                          << ", Start: " << glm::to_string(drawStartPoint) << std::endl;
         }
 
-        glEnable(GL_DEPTH_TEST);
+        // --- Drawing BoxColliders (dark green) ---
+        glm::vec3 darkGreen = glm::vec3(0.0f, 0.5f, 0.0f);
+
+        for (const auto& pair : allWorldAABBs) {
+            // pair.first is StaticMesh*, pair.second is the BoxCollider (current AABB)
+            const BoxCollider& box = pair.second;
+            glm::vec3 min = box.min;
+            glm::vec3 max = box.max;
+
+            // 8 AABB corners
+            glm::vec3 c0 = glm::vec3(min.x, min.y, min.z);
+            glm::vec3 c1 = glm::vec3(max.x, min.y, min.z);
+            glm::vec3 c2 = glm::vec3(max.x, max.y, min.z);
+            glm::vec3 c3 = glm::vec3(min.x, max.y, min.z);
+
+            glm::vec3 c4 = glm::vec3(min.x, min.y, max.z);
+            glm::vec3 c5 = glm::vec3(max.x, min.y, max.z);
+            glm::vec3 c6 = glm::vec3(max.x, max.y, max.z);
+            glm::vec3 c7 = glm::vec3(min.x, max.y, max.z);
+
+            // 12 Edges
+            // Bottom Face
+            debugDrawer.DrawLine(c0, c1, darkGreen, view, projection);
+            debugDrawer.DrawLine(c1, c2, darkGreen, view, projection);
+            debugDrawer.DrawLine(c2, c3, darkGreen, view, projection);
+            debugDrawer.DrawLine(c3, c0, darkGreen, view, projection);
+
+            // Top Face
+            debugDrawer.DrawLine(c4, c5, darkGreen, view, projection);
+            debugDrawer.DrawLine(c5, c6, darkGreen, view, projection);
+            debugDrawer.DrawLine(c6, c7, darkGreen, view, projection);
+            debugDrawer.DrawLine(c7, c4, darkGreen, view, projection);
+
+            // Connecting Edges
+            debugDrawer.DrawLine(c0, c4, darkGreen, view, projection);
+            debugDrawer.DrawLine(c1, c5, darkGreen, view, projection);
+            debugDrawer.DrawLine(c2, c6, darkGreen, view, projection);
+            debugDrawer.DrawLine(c3, c7, darkGreen, view, projection);
+        }
+
+        glEnable(GL_DEPTH_TEST); // Re-enable depth testing for subsequent rendering
+
         //============================================================================draw imgui
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -584,7 +624,7 @@ void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
     if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS) {
-        if (!keyLWasPressed) { // Kontrola, aby se nepřepínalo neustále
+        if (!keyLWasPressed) { // Check to prevent constant toggling
             cursorEnabled = !cursorEnabled;
             if (cursorEnabled) {
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);

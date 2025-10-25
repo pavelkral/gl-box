@@ -8,14 +8,13 @@
 #include <map>
 #include <set>
 #include <cfloat>
-#include <iostream>
+//#include <iostream>
 
-// Forward deklarace tvé třídy. Díky tomu nemusíme #include "StaticMesh.h"
-// přímo zde na vrchu a vyhneme se cyklickým závislostem.
+
 class StaticMesh;
 
 //=========================================================================================
-// 1. DEFINICE PAPRSKU (Ray)
+// 1. (Ray)
 //=========================================================================================
 struct Ray {
     glm::vec3 origin;
@@ -26,7 +25,7 @@ struct Ray {
 };
 
 //=========================================================================================
-// 2. DEFINICE BOUNDING BOXU (BoxCollider)
+// 2.  BOUNDING BOX (BoxCollider)
 //=========================================================================================
 class BoxCollider {
 public:
@@ -140,7 +139,7 @@ public:
 };
 
 //=========================================================================================
-// 3. DEFINICE VÝSLEDKU ZÁSAHU (RaycastHit)
+// 3. Def hit resul(RaycastHit)
 //=========================================================================================
 struct RaycastHit {
     bool hit = false;
@@ -150,7 +149,7 @@ struct RaycastHit {
 };
 
 //=========================================================================================
-// 4. DEFINICE UZLU PRO OCTREE (OctreeNode)
+// 4.  OCTREE node (OctreeNode)
 //=========================================================================================
 class OctreeNode {
 public:
@@ -191,7 +190,7 @@ public:
 };
 
 //=========================================================================================
-// 5. DEFINICE OCTREE
+// 5. OCTREE
 //=========================================================================================
 class Octree {
 public:

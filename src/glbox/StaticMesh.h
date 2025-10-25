@@ -6,12 +6,14 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "PbrMaterial.h"
 #include "physics/Raycast.h"
+
 class StaticMesh {
 
 public:
 
     unsigned int VAO = 0, VBO = 0, EBO = 0;
     unsigned int indexCount;
+    std::string meshname = "";
 
     std::vector<float> vertices;    //  data Stride 11 (P, N, UV, T)
     std::vector<unsigned int> indices;
@@ -26,8 +28,8 @@ public:
     // =========================================================================================
     StaticMesh(const std::vector<float>& initialVertices,
                const std::vector<unsigned int>& initialIndices,
-               PbrMaterial* mat)
-        : material(mat)
+               PbrMaterial* mat,std::string name)
+        : material(mat),meshname(name)
     {
 
         UpdateGeometry(initialVertices, initialIndices);
@@ -80,7 +82,7 @@ public:
     {
 
         if (inputVertices.size() % INPUT_STRIDE != 0) {
-            std::cerr << "CHYBA: UpdateGeometry: Vstupní data (P, N, UV) nemají očekávaný Stride " << INPUT_STRIDE << "." << std::endl;
+            std::cerr << "err: UpdateGeometry:  data (P, N, UV) not have Stride " << INPUT_STRIDE << "." << std::endl;
             indexCount = 0;
             return;
         }
@@ -92,7 +94,7 @@ public:
         CalculateTangents(this->vertices, this->indices); //  Stride 8 -> Stride 11
 
         if (this->vertices.size() % VERTEX_STRIDE != 0) {
-            std::cerr << "CHYBA: UpdateGeometry: Chyba po CalculateTangents! Výstupní Stride NENÍ " << VERTEX_STRIDE << "." << std::endl;
+            std::cerr << "err: UpdateGeometry:  Stride not " << VERTEX_STRIDE << "." << std::endl;
             indexCount = 0;
             return;
         }
