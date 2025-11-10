@@ -145,7 +145,6 @@ inline void HdriSky::init(const std::string& hdrPath)
     Shader shaderProgram1(skyboxVS, skyboxFS, true);
     skyboxShader = shaderProgram1.ID;
 
-    // Nastavení samplerů
     glUseProgram(equirectToCubemapShader);
     glUniform1i(
         glGetUniformLocation(equirectToCubemapShader, "equirectangularMap"), 0);
@@ -172,7 +171,7 @@ inline void HdriSky::init(const std::string& hdrPath)
     stbi_image_free(data);
 
     // --------------------------------------------------------------------------------------------------
-    // 2. Příprava Cubemapy (Alokace paměti a nastavení filtru s Mipmaps)
+    // (Alokace paměti a nastavení filtru s Mipmaps)
     // --------------------------------------------------------------------------------------------------
     const unsigned int CUBEMAP_RESOLUTION = 512;
     glGenTextures(1, &envCubemap);
@@ -183,7 +182,7 @@ inline void HdriSky::init(const std::string& hdrPath)
         glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
                      CUBEMAP_RESOLUTION, CUBEMAP_RESOLUTION, 0, GL_RGB, GL_FLOAT, nullptr);
 
-    // DŮLEŽITÉ: Použití Mipmap filtrů pro správné reflexe na dálku
+    // Použití Mipmap filtrů pro správné reflexe na dálku
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -191,24 +190,22 @@ inline void HdriSky::init(const std::string& hdrPath)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // --------------------------------------------------------------------------------------------------
-    // 3. Konverze (Render to Cubemap)
+    //  (Render to Cubemap)
     // --------------------------------------------------------------------------------------------------
     unsigned int captureFBO, captureRBO;
     glGenFramebuffers(1, &captureFBO);
     glGenRenderbuffers(1, &captureRBO);
 
-    // ZACHOVÁNÍ PŮVODNÍHO STAVU
-    // Uložíme si původní rozměry viewportu
+
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
-    // Konfigurace FBO/RBO
     glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
     glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, CUBEMAP_RESOLUTION, CUBEMAP_RESOLUTION);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 
-    // Nastavení projekčních matic
+
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 200.0f);
     glm::mat4 captureViews[] = {
         glm::lookAt(glm::vec3(0,0,0), glm::vec3( 1, 0, 0), glm::vec3(0,-1, 0)),
@@ -226,8 +223,8 @@ inline void HdriSky::init(const std::string& hdrPath)
 
     glViewport(0, 0, CUBEMAP_RESOLUTION, CUBEMAP_RESOLUTION);
 
-    // Při renderování prostředí je ideální vypnout testování hloubky
-    // abychom se ujistili, že je celá krychle vykreslena.
+    //  vypnout testování hloubky
+
     glDisable(GL_DEPTH_TEST);
 
     for(unsigned int i = 0; i < 6; i++)
@@ -239,10 +236,8 @@ inline void HdriSky::init(const std::string& hdrPath)
         renderCube();
     }
 
-    // Obnovení stavu a čištění
-    glEnable(GL_DEPTH_TEST);
 
-    // Obnovení původního Viewportu
+    glEnable(GL_DEPTH_TEST);
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

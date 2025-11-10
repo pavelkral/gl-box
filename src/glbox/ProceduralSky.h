@@ -1,15 +1,13 @@
 #ifndef PROCEDURALSKY_H
 #define PROCEDURALSKY_H
 
-#include "Shader.h" // Předpokládá se existence této třídy pro kompilaci shaderů
+#include "Shader.h"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-// Vzory šumu jsou složité na implementaci do holého řetězce,
-// Proto zde používáme jednoduchou, ale efektivní FBM (Fractal Brownian Motion) metodu
-// založenou na pseudonáhodné funkci.
+
 
 const char *vertexShaderSource = R"(
     #version 330 core
@@ -160,14 +158,13 @@ class ProceduralSky {
 public:
 
     bool Setup() {
-        // Inicializace shaderu
+
         Shader shaderProgram1(vertexShaderSource, fragmentShaderSource, true);
         m_skyShader  = shaderProgram1.ID;
 
-        // Vytvoření VAO. Geometrie je generována ve vertex shaderu pomocí gl_VertexID.
         glGenVertexArrays(1, &m_skyVAO);
         glBindVertexArray(m_skyVAO);
-        // Odpojení VAO
+
         glBindVertexArray(0);
 
         return true;
@@ -175,25 +172,17 @@ public:
 
     ~ProceduralSky() {
         glDeleteVertexArrays(1, &m_skyVAO);
-        // Shader se obvykle maže jinde, ale pro jistotu:
         // glDeleteProgram(m_skyShader);
     }
 
-    /**
-     * @brief Vykreslí procedurální oblohu s mraky.
-     * @param invView Inverzní matice pohledu kamery.
-     * @param invProjection Inverzní matice projekce kamery.
-     * @param sunDirection Normalizovaný směr slunce ve world-space.
-     * @param time Aktuální čas v sekundách (pro animaci mraků).
-     */
+
     void Draw(const glm::mat4 &invView, const glm::mat4 &invProjection,
               const glm::vec3 &sunDirection, float time) {
 
-        // 1. Nastaví stav OpenGL
-        glDepthMask(GL_FALSE); // Ignoruje zápis do Z-bufferu (pro nekonečnou oblohu)
+
+        glDepthMask(GL_FALSE);
         glUseProgram(m_skyShader);
 
-        // 2. Nastavení Uniformů
         glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniProjekce"),
                            1, GL_FALSE, glm::value_ptr(invProjection));
         glUniformMatrix4fv(glGetUniformLocation(m_skyShader, "u_inverzniPohled"), 1,
@@ -201,15 +190,13 @@ public:
         glUniform3fv(glGetUniformLocation(m_skyShader, "u_sunDirection"), 1,
                      glm::value_ptr(sunDirection));
 
-        // NOVÝ: Předání času pro animaci
         glUniform1f(glGetUniformLocation(m_skyShader, "u_time"), time);
 
-        // 3. Vykreslení
+
         glBindVertexArray(m_skyVAO);
-        // Vykreslení trojúhelníku pokrývajícího celou obrazovku
+
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        // 4. Obnovení stavu OpenGL
         glBindVertexArray(0);
         glDepthMask(GL_TRUE); // Obnoví zápis do Z-bufferu pro zbytek scény
     }

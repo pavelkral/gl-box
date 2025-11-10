@@ -7,7 +7,7 @@
 #include <glad/glad.h>
 #include <iostream>
 
-// Minimalistický GLSL kód pro Debug Line
+
 const char* debugVertexShaderSource = R"(
 #version 330 core
 layout (location = 0) in vec3 aPos;
@@ -95,13 +95,11 @@ public:
         glDeleteVertexArrays(1, &VAO);
     }
 
-    /**
-     * Nakreslí čáru mezi dvěma body s danou barvou.
-     */
+
     void DrawLine(const glm::vec3& start, const glm::vec3& end, const glm::vec3& color, const glm::mat4& view, const glm::mat4& projection) {
         glUseProgram(shaderProgram);
 
-        // Nastav uniformy
+
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniform3fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(color));
