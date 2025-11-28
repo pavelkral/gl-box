@@ -56,7 +56,8 @@ static constexpr GLuint CAMERA_UBO_BINDING = 0;
 static constexpr int INITIAL_LIVES = 3;
 static constexpr int SCORE_PER_BRICK = 10;
 }
-
+float fpsTimer = 0.0f;
+int frameCount = 0;
 //
 // -------------------- Utility Helpers --------------------
 //
@@ -852,7 +853,7 @@ int main() {
         std::cerr << "GLAD load failed\n"; glfwTerminate(); return -1;
     }
     glEnable(GL_DEPTH_TEST);
-
+    glfwSwapInterval(0);
     initGLResources();
 
     // ImGui init
@@ -907,6 +908,17 @@ int main() {
         }
 
         glfwSwapBuffers(window);
+        fpsTimer += dt;
+        frameCount++;
+
+        if (fpsTimer >= 1.0f) { // každou sekundu
+            float avgFrameTime = 1000.0f * fpsTimer / frameCount; // ms
+            float fps = frameCount / fpsTimer;
+            std::cout << "[Profiler] Avg frame time: " << avgFrameTime
+                      << " ms, FPS: " << fps << std::endl;
+            fpsTimer = 0.0f;
+            frameCount = 0;
+        }
     }
 
     ImGui_ImplOpenGL3_Shutdown();
