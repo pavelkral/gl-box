@@ -22,19 +22,15 @@
 #include <ctime>
 #include <string>
 
-//
 // -------------------- Constants --------------------
-//
 namespace Constants {
 static constexpr unsigned int SCR_WIDTH  = 1280u;
 static constexpr unsigned int SCR_HEIGHT = 720u;
-
 // world bounds
 static constexpr float WORLD_MIN_X = -15.0f;
 static constexpr float WORLD_MAX_X =  15.0f;
 static constexpr float WORLD_MIN_Y = -10.0f;
 static constexpr float WORLD_MAX_Y =  15.0f;
-
 // bricks grid
 static constexpr int BRICK_ROWS    = 5;
 static constexpr int BRICK_COLS    = 10;
@@ -43,25 +39,19 @@ static constexpr float BRICK_SPACING_Y = 2.0f;
 static constexpr float BRICK_OFFSET_X = -13.5f;
 static constexpr float BRICK_OFFSET_Y = 2.0f;
 static constexpr glm::vec3 BRICK_SCALE = {2.5f, 1.0f, 1.0f};
-
 // paddle
 static constexpr glm::vec3 PADDLE_START_POS = {0.0f, -5.0f, 0.0f};
 static constexpr glm::vec3 PADDLE_SCALE = {6.0f, 1.0f, 2.0f};
 static constexpr float PADDLE_SPEED = 20.0f;
-
 // ball
 static constexpr glm::vec3 BALL_START_POS = {0.0f, -3.0f, 0.0f};
 static constexpr glm::vec3 BALL_START_VEL = {5.0f, 8.0f, 0.0f};
 static constexpr float BALL_RADIUS = 1.0f;
-
 // camera
-static constexpr glm::vec3 CAMERA_POS   = {0.0f, 15.0f, 35.0f};
-static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.3f, -1.0f};
+static constexpr glm::vec3 CAMERA_POS   = {0.0f, 10.0f, 35.0f};
+static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.1f, -1.0f};
 static constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
-
-// UBO binding
 static constexpr GLuint CAMERA_UBO_BINDING = 0;
-
 // gameplay
 static constexpr int INITIAL_LIVES = 3;
 static constexpr int SCORE_PER_BRICK = 10;
@@ -112,8 +102,12 @@ struct BallComponent {
 
 struct PaddleComponent {};
 struct BrickComponent {};
-struct ScoreComponent { int value = 0; };
-struct LivesComponent { int value = Constants::INITIAL_LIVES; };
+struct ScoreComponent {
+    int value = 0;
+};
+struct LivesComponent {
+    int value = Constants::INITIAL_LIVES;
+};
 
 class EntityManager {
 public:
@@ -171,7 +165,7 @@ public:
 // Minimal cube (position only) and sphere (position only).
 //
 struct Mesh {
-    GLuint vao=0, vbo=0, ebo=0;
+    GLuint vao=0,vbo=0, ebo=0;
     GLsizei indexCount = 0;
 };
 
@@ -259,28 +253,27 @@ Mesh makeSphere(int latSeg = 16, int longSeg = 16, float radius = 0.5f) {
     return m;
 }
 
-//
-// -------------------- Shaders --------------------
-// Vertex uses per-instance model matrix (locations 1-4) and per-instance color (location 5).
-// Camera matrices are in a UBO bound to binding point Constants::CAMERA_UBO_BINDING.
-//
 const char* vertexShaderSrc = R"glsl(
 #version 330 core
+
 layout(location = 0) in vec3 aPos;
+
 // instance model matrix (mat4 takes 4 attribute slots)
+
 layout(location = 1) in vec4 aModelRow0;
 layout(location = 2) in vec4 aModelRow1;
 layout(location = 3) in vec4 aModelRow2;
 layout(location = 4) in vec4 aModelRow3;
 layout(location = 5) in vec4 aColor;
 
-out vec4 vColor;
-out vec3 vWorldPos;
-out vec3 Normal;
 layout(std140) uniform Camera {
     mat4 view;
     mat4 projection;
 };
+
+out vec4 vColor;
+out vec3 vWorldPos;
+out vec3 Normal;
 
 void main(){
     mat4 model = mat4(aModelRow0, aModelRow1, aModelRow2, aModelRow3);
@@ -296,6 +289,7 @@ void main(){
 
 const char* fragmentShaderSrc = R"glsl(
 #version 330 core
+
 in vec3 vWorldPos;
 in vec3 Normal;
 in vec4 vColor;
@@ -323,24 +317,16 @@ struct GLResources {
     // main shader
     GLuint program = 0;
     GLuint cameraUBO = 0;
-
-    // mesh objects
     Mesh cubeMesh;
     Mesh sphereMesh;
-
-    // instancing buffers for bricks
     GLuint instanceVBO = 0; // model matrices
     GLuint colorVBO = 0;    // per-instance colors
-
     // VAO configured for instanced drawing (shares cube mesh VBO/EBO)
     GLuint instancedVAO = 0;
 };
 
 static GLResources glr;
 
-//
-// Create shader program and camera UBO
-//
 static void initGLResources() {
     // compile shaders
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
@@ -487,6 +473,12 @@ void InputSystem(EntityManager& em, GLFWwindow* window, float dt) {
     int w,h; glfwGetWindowSize(window, &w, &h);
     float worldX = static_cast<float>(mx) / float(w) * (Constants::WORLD_MAX_X - Constants::WORLD_MIN_X) + Constants::WORLD_MIN_X;
 
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
+
+            glfwSetWindowShouldClose(window, true);
+
+    }
+
     for (auto &kv : em.paddles) {
         EntityID pid = kv.first;
         auto &t = em.transforms[pid];
@@ -518,7 +510,9 @@ public:
         : em(e), paddleStart(Constants::PADDLE_START_POS),
         ballStart(Constants::BALL_START_POS),
         ballVelStart(Constants::BALL_START_VEL)
-    {}
+    {
+        destroyed.reserve(8);
+    }
     void reset(const glm::vec3& paddlePos,
                const glm::vec3& ballPos,
                const glm::vec3& ballVel)
@@ -575,8 +569,7 @@ public:
             }
 
             // brick collisions (collect destructions, update score)
-          //  std::vector<EntityID> destroyed;
-            destroyed.reserve(8);
+
             for (auto &bb : em.bricks) {
                 EntityID brickID = bb.first;
                 auto &bT = em.transforms[brickID];
@@ -643,6 +636,7 @@ private:
 // Ensures popup opens only once when gameOver becomes true and closes on restart.
 //
 void UISystem(EntityManager& em, bool gameOver, bool &restartRequested, bool &popupOpened) {
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -696,7 +690,8 @@ void RenderSystem(EntityManager &em, const glm::mat4& view, const glm::mat4& pro
     buildInstancingBuffersForBricks(em);
 
     glUseProgram(glr.program);
-
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f); // <--- PŘIDAT: Barva pozadí
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // <--- PŘIDAT: Vymazání bufferů
     // Draw bricks with instancing
     size_t instanceCount = em.brickOrder.size();
     if (instanceCount > 0) {
@@ -880,39 +875,26 @@ int main() {
     bool popupOpened = false;
     glm::mat4 view = glm::lookAt(Constants::CAMERA_POS, glm::vec3(0.0f, 0.0f, 0.0f), Constants::CAMERA_UP);
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), float(Constants::SCR_WIDTH) / float(Constants::SCR_HEIGHT), 0.1f, 100.0f);
+
     // --- MAIN LOOP ---
     while (!glfwWindowShouldClose(window)) {
+
         float now = (float)glfwGetTime();
         float dt = glm::clamp(now - last, 0.0f, 0.033f);
         last = now;
 
         glfwPollEvents();
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) break;
 
-        // 1. INPUT
         InputSystem(em, window, dt);
 
-        // 2. PHYSICS
         if (running) {
             running = physics.update(dt);
             if (!running) popupOpened = false;
         }
 
-        // 3. RENDER SETUP - TOTO TI CHYBĚLO!
-        // Nastavíme tmavě šedé pozadí (abychom viděli černé objekty, kdyby selhalo světlo)
-        glClearColor(0.2f, 0.2f, 0.2f, 1.0f); // <--- PŘIDAT: Barva pozadí
-        // Vymažeme barvu a hloubku z minulého snímku
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // <--- PŘIDAT: Vymazání bufferů
-
-        // 4. KAMERA
-        // Upravil jsem pohled: Kamera se dívá přímo na střed světa (0,0,0), což je bezpečnější než fixní Front vektor
-        // 5. RENDER SCENE
         RenderSystem(em, view, proj);
-
-        // 6. RENDER UI
         UISystem(em, !running, restartRequested, popupOpened);
 
-        // 7. RESTART LOGIC
         if (restartRequested) {
             setupGame(em, glr.cubeMesh, glr.sphereMesh, paddle, ball);
             physics.reset( em.transforms[paddle].pos,
@@ -927,7 +909,6 @@ int main() {
         glfwSwapBuffers(window);
     }
 
-    // cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
