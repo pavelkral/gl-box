@@ -17,11 +17,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-// Window
+
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
 
-// --- SHADERS (jednoduché, pro 2D) ---
+
 const char* vertexShaderSource = R"glsl(
 #version 330 core
 layout (location = 0) in vec2 aPos;
