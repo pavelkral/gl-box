@@ -52,7 +52,7 @@ static constexpr float PADDLE_SPEED = 20.0f;
 // ball
 static constexpr glm::vec3 BALL_START_POS = {0.0f, -3.0f, 0.0f};
 static constexpr glm::vec3 BALL_START_VEL = {5.0f, 8.0f, 0.0f};
-static constexpr float BALL_RADIUS = 0.5f;
+static constexpr float BALL_RADIUS = 1.0f;
 
 // camera
 static constexpr glm::vec3 CAMERA_POS   = {0.0f, 15.0f, 35.0f};
@@ -637,16 +637,6 @@ private:
     }
 };
 
-//
-// External helper (also used earlier) - kept here for clarity
-//
-// static bool aabbCollision2D(const glm::vec3& boxPos,const glm::vec3& boxScale,
-//                             const glm::vec3& ballPos,float radius){
-//     return (ballPos.x + radius > boxPos.x - boxScale.x*0.5f &&
-//             ballPos.x - radius < boxPos.x + boxScale.x*0.5f &&
-//             ballPos.y + radius > boxPos.y - boxScale.y*0.5f &&
-//             ballPos.y - radius < boxPos.y + boxScale.y*0.5f);
-// }
 
 //
 // UISystem using ImGui: shows score/lives and Game Over modal with restart.
@@ -888,7 +878,8 @@ int main() {
     bool running = true;
     bool restartRequested = false;
     bool popupOpened = false;
-
+    glm::mat4 view = glm::lookAt(Constants::CAMERA_POS, glm::vec3(0.0f, 0.0f, 0.0f), Constants::CAMERA_UP);
+    glm::mat4 proj = glm::perspective(glm::radians(45.0f), float(Constants::SCR_WIDTH) / float(Constants::SCR_HEIGHT), 0.1f, 100.0f);
     // --- MAIN LOOP ---
     while (!glfwWindowShouldClose(window)) {
         float now = (float)glfwGetTime();
@@ -915,9 +906,6 @@ int main() {
 
         // 4. KAMERA
         // Upravil jsem pohled: Kamera se dívá přímo na střed světa (0,0,0), což je bezpečnější než fixní Front vektor
-        glm::mat4 view = glm::lookAt(Constants::CAMERA_POS, glm::vec3(0.0f, 0.0f, 0.0f), Constants::CAMERA_UP);
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), float(Constants::SCR_WIDTH) / float(Constants::SCR_HEIGHT), 0.1f, 100.0f);
-
         // 5. RENDER SCENE
         RenderSystem(em, view, proj);
 
