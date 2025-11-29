@@ -1,6 +1,3 @@
-// main.cpp
-// Modern C++ OOP Arkanoid 3D
-// Vyžaduje: C++17, GLFW, GLAD, GLM, ImGui
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -39,7 +36,7 @@ constexpr float MAX_Y = 40.0f;
 
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 300;
+constexpr int COLS = 100;
 constexpr float SPACING_X = 3.0f;
 constexpr float SPACING_Y = 2.0f;
 constexpr float START_X = -13.5f;
@@ -56,7 +53,7 @@ constexpr float SPEED = 50.0f;
 namespace Ball {
 constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
 constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
-constexpr float RADIUS = 1.0f;
+constexpr float RADIUS = 0.7f;
 constexpr float SPEEDUP_FACTOR = 1.05f; // každá kolize zrychlí o 5%
 constexpr float MAX_SPEED = 30.0f;
 }
@@ -80,6 +77,7 @@ struct Stats {
             fps = (float)frameCount / fpsTimer;
             frameCount = 0;
             fpsTimer = 0.0f;
+            std::cout << "FPS: " << fps << " | " << std::endl;
         }
     }
 
@@ -389,7 +387,7 @@ class Game {
     int lives = Config::INITIAL_LIVES;
     float fpsTimer = 0.0f;
     int frameCount = 0;
-Stats stats;
+    Stats stats;
     // Temporary vectors for instancing (avoid reallocations)
     std::vector<glm::mat4> renderMatrices;
     std::vector<glm::vec4> renderColors;
@@ -445,12 +443,7 @@ public:
             glfwSwapBuffers(window.get());
 
             // FPS Counter
-            frameCount++;
-            fpsTimer += dt;
-            if (fpsTimer >= 1.0f) {
-                std::cout << "FPS: " << frameCount << " | " << std::endl;
-                fpsTimer = 0; frameCount = 0;
-            }
+
              stats.update(dt);
         }
         cleanup();

@@ -1,7 +1,4 @@
 // modern_ecs_opengl.cpp
-// Kompletní single-file projekt: ECS + OpenGL + ImGui
-// Kompilovat s GLAD, GLFW, GLM, ImGui dle instrukcí výše.
-
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -25,31 +22,7 @@
 #include <random>
 #include <string>
 
-struct Stats {
-    float deltaTime = 0.0f;      // poslední frame time
-    int frameCount = 0;          // počítadlo frame
-    float fpsTimer = 0.0f;       // akumulátor času
-    float fps = 0.0f;            // FPS za poslední sekundu
 
-    void update(float dt) {
-        deltaTime = dt;
-        frameCount++;
-        fpsTimer += dt;
-
-        if(fpsTimer >= 1.0f){
-            fps = (float)frameCount / fpsTimer;
-            frameCount = 0;
-            fpsTimer = 0.0f;
-        }
-    }
-
-    void drawUI(){
-        ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::Text("FPS: %.1f", fps);
-        ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0f);
-        ImGui::End();
-    }
-};
 // -------------------- Config --------------------
 
 constexpr unsigned int MAX_ENTITIES = 16384; // dostatečně pro 4000 bricks + paddle + balls
@@ -73,7 +46,7 @@ constexpr float MAX_Y = 40.0f;
 }
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 300;
+constexpr int COLS = 100;
 
 constexpr float FIELD_WIDTH = Config::World::MAX_X - Config::World::MIN_X;
 constexpr float SCALE_X = FIELD_WIDTH / COLS;
@@ -100,7 +73,32 @@ constexpr float MAX_SPEED = 30.0f;      // maximální rychlost
 constexpr int INITIAL_LIVES = 3;
 constexpr int SCORE_PER_BRICK = 10;
 }
+struct Stats {
+    float deltaTime = 0.0f;      // poslední frame time
+    int frameCount = 0;          // počítadlo frame
+    float fpsTimer = 0.0f;       // akumulátor času
+    float fps = 0.0f;            // FPS za poslední sekundu
 
+    void update(float dt) {
+        deltaTime = dt;
+        frameCount++;
+        fpsTimer += dt;
+
+        if(fpsTimer >= 1.0f){
+            fps = (float)frameCount / fpsTimer;
+            frameCount = 0;
+            fpsTimer = 0.0f;
+            std::cout << "FPS: " << fps << " | " << std::endl;
+        }
+    }
+
+    void drawUI(){
+        ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text("FPS: %.1f", fps);
+        ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0f);
+        ImGui::End();
+    }
+};
 // -------------------- Random --------------------
 static std::mt19937 rng{std::random_device{}()};
 static float frand(float a = 0.0f, float b = 1.0f){
@@ -586,7 +584,7 @@ public:
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Modern ECS Arkanoid", nullptr, nullptr);
+        window = glfwCreateWindow(Config::SCR_WIDTH, Config::SCR_HEIGHT, "Modern ECS Arkanoid", nullptr, nullptr);
         if(!window){ glfwTerminate(); return false; }
         glfwMakeContextCurrent(window);
         if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ std::cerr<<"GLAD init failed\n"; return false; }
@@ -636,7 +634,7 @@ public:
         view = glm::lookAt(CAMERA_POS,
                            CAMERA_POS + CAMERA_FRONT,
                            CAMERA_UP);
-        projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH/(float)SCR_HEIGHT, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(45.0f), (float)Config::SCR_WIDTH/(float)Config::SCR_HEIGHT, 0.1f, 100.0f);
 
         return true;
     }
@@ -667,12 +665,7 @@ public:
             }
 
             glfwSwapBuffers(window);
-            frameCount++;
-            fpsTimer += dt;
-            if (fpsTimer >= 1.0f) {
-                std::cout << "FPS: " << frameCount << " | " << std::endl;
-                fpsTimer = 0; frameCount = 0;
-            }
+
             stats.update(dt);
         }
     }
