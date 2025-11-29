@@ -31,7 +31,7 @@ namespace World {
 constexpr float MIN_X = -60.0f;
 constexpr float MAX_X = 60.0f;
 constexpr float MIN_Y = -40.0f;
-constexpr float MAX_Y = 40.0f;
+constexpr float MAX_Y = 20.0f;
 }
 
 namespace Bricks {
@@ -53,7 +53,7 @@ constexpr float SPEED = 50.0f;
 namespace Ball {
 constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
 constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
-constexpr float RADIUS = 0.7f;
+constexpr float RADIUS = 1.0f;
 constexpr float SPEEDUP_FACTOR = 1.05f; // každá kolize zrychlí o 5%
 constexpr float MAX_SPEED = 30.0f;
 }
@@ -531,7 +531,7 @@ private:
         paddle.transform.scale = Config::Paddle::SCALE;
 
         ball.transform.pos = Config::Ball::START_POS;
-        ball.transform.scale = glm::vec3(Config::Ball::RADIUS * 2.0f); // Scale vizual
+        ball.transform.scale = glm::vec3(Config::Ball::RADIUS, Config::Ball::RADIUS, Config::Ball::RADIUS); // Scale vizual
         ball.radius = Config::Ball::RADIUS;
         ball.velocity = Config::Ball::START_VEL;
     }
@@ -596,17 +596,17 @@ private:
                 brick.alive = false;
                 score += Config::SCORE_PER_BRICK;
 
-                if (std::abs(ball.transform.pos.x - brick.transform.pos.x) > std::abs(ball.transform.pos.y - brick.transform.pos.y))
+                glm::vec3 delta = ball.transform.pos - brick.transform.pos;
+                if (abs(delta.x) > abs(delta.y))
                     ball.velocity.x *= -1.0f;
                 else
                     ball.velocity.y *= -1.0f;
 
-                // --- Zrychlení míče ---
+                // ECS-style speedup
                 ball.velocity *= Config::Ball::SPEEDUP_FACTOR;
-                if (glm::length(ball.velocity) > Config::Ball::MAX_SPEED)
+                float len = glm::length(ball.velocity);
+                if (len > Config::Ball::MAX_SPEED)
                     ball.velocity = glm::normalize(ball.velocity) * Config::Ball::MAX_SPEED;
-
-                break; // jen jeden brick
             }
         }
 
@@ -703,7 +703,7 @@ private:
             }
             ImGui::EndPopup();
         }
-        stats.drawUI();
+       // stats.drawUI();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }

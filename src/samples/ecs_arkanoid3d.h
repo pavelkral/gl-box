@@ -42,7 +42,7 @@ namespace World {
 constexpr float MIN_X = -60.0f;
 constexpr float MAX_X = 60.0f;
 constexpr float MIN_Y = -40.0f;
-constexpr float MAX_Y = 40.0f;
+constexpr float MAX_Y = 20.0f;
 }
 namespace Bricks {
 constexpr int ROWS = 10;
@@ -485,7 +485,7 @@ public:
         bool update(float dt){
             if(!reg) return true;
 
-            reg->view<Ball, Transform, Ball>([&](Entity e, Ball& b, Transform& t, Ball& unused){
+            reg->view<Ball, Transform>([&](Entity e, Ball& b, Transform& t){
                 t.pos += b.velocity * dt;
 
                 // --- odraz od stěn ---
@@ -906,17 +906,23 @@ private:
         registry.view<Score>([](Entity e, Score& s){ ImGui::TextColored(ImVec4(1,1,0,1), "Score: %d", s.value); });
         registry.view<Lives>([](Entity e, Lives& l){ ImGui::TextColored(ImVec4(1,0,0,1), "Lives: %d", l.value); });
         ImGui::End();
-        stats.drawUI();
+        //stats.drawUI();
         if(!running){
             if(!popupOpened){ ImGui::OpenPopup("Game Over!"); popupOpened = true; }
         }
 
         if(ImGui::BeginPopupModal("Game Over!", NULL, ImGuiWindowFlags_AlwaysAutoResize)){
-            ImGui::Text("YOU LOST ALL YOUR LIVES!\n");
+            ImGui::Text("GAME OVER");
             ImGui::Separator();
-            if(ImGui::Button("Restart")){ restartRequested = true; ImGui::CloseCurrentPopup(); }
+             if (ImGui::Button("Restart", ImVec2(120, 0))){
+                restartRequested = true;
+                 ImGui::CloseCurrentPopup();
+             }
             ImGui::SameLine();
-            if(ImGui::Button("Quit")){ glfwSetWindowShouldClose(window, true); ImGui::CloseCurrentPopup(); }
+             if (ImGui::Button("Exit", ImVec2(120, 0))){
+                glfwSetWindowShouldClose(window, true);
+                 ImGui::CloseCurrentPopup();
+             }
             ImGui::EndPopup();
         }
 
