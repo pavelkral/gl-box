@@ -1,7 +1,7 @@
-// main.cpp
-// 3D ECS Arkanoid - ECS-friendly instancing for bricks
-// Modern OpenGL (VAO/VBO/EBO), UBO for camera, ImGui UI (score/lives + restart modal)
-// Single-file example for learning / prototype use.
+// modern_ecs_opengl.cpp
+// Kompletní single-file projekt: ECS + OpenGL + ImGui
+// Kompilovat s GLAD, GLFW, GLM, ImGui dle instrukcí výše.
+
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -15,257 +15,120 @@
 #include "imgui_impl_opengl3.h"
 
 #include <vector>
+#include <array>
 #include <unordered_map>
+#include <typeindex>
+#include <memory>
+#include <cassert>
 #include <iostream>
 #include <algorithm>
-#include <cstdlib>
-#include <ctime>
+#include <random>
 #include <string>
 
-// -------------------- Constants --------------------
-namespace Constants {
-static constexpr unsigned int SCR_WIDTH  = 1280u;
-static constexpr unsigned int SCR_HEIGHT = 720u;
-// world bounds
-static constexpr float WORLD_MIN_X = -15.0f;
-static constexpr float WORLD_MAX_X =  15.0f;
-static constexpr float WORLD_MIN_Y = -10.0f;
-static constexpr float WORLD_MAX_Y =  15.0f;
-// bricks grid
-static constexpr int BRICK_ROWS    = 5;
-static constexpr int BRICK_COLS    = 10;
-static constexpr float BRICK_SPACING_X = 3.0f;
-static constexpr float BRICK_SPACING_Y = 2.0f;
-static constexpr float BRICK_OFFSET_X = -13.5f;
-static constexpr float BRICK_OFFSET_Y = 2.0f;
-static constexpr glm::vec3 BRICK_SCALE = {2.5f, 1.0f, 1.0f};
-// paddle
-static constexpr glm::vec3 PADDLE_START_POS = {0.0f, -5.0f, 0.0f};
-static constexpr glm::vec3 PADDLE_SCALE = {6.0f, 1.0f, 2.0f};
-static constexpr float PADDLE_SPEED = 20.0f;
-// ball
-static constexpr glm::vec3 BALL_START_POS = {0.0f, -3.0f, 0.0f};
-static constexpr glm::vec3 BALL_START_VEL = {5.0f, 8.0f, 0.0f};
-static constexpr float BALL_RADIUS = 1.0f;
-// camera
-static constexpr glm::vec3 CAMERA_POS   = {0.0f, 10.0f, 35.0f};
+struct Stats {
+    float deltaTime = 0.0f;      // poslední frame time
+    int frameCount = 0;          // počítadlo frame
+    float fpsTimer = 0.0f;       // akumulátor času
+    float fps = 0.0f;            // FPS za poslední sekundu
+
+    void update(float dt) {
+        deltaTime = dt;
+        frameCount++;
+        fpsTimer += dt;
+
+        if(fpsTimer >= 1.0f){
+            fps = (float)frameCount / fpsTimer;
+            frameCount = 0;
+            fpsTimer = 0.0f;
+        }
+    }
+
+    void drawUI(){
+        ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text("FPS: %.1f", fps);
+        ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0f);
+        ImGui::End();
+    }
+};
+// -------------------- Config --------------------
+static constexpr glm::vec3 CAMERA_POS   = {0.0f, 4.0f, 95.0f};
 static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.1f, -1.0f};
 static constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
-static constexpr GLuint CAMERA_UBO_BINDING = 0;
-// gameplay
-static constexpr int INITIAL_LIVES = 3;
-static constexpr int SCORE_PER_BRICK = 10;
+
+constexpr unsigned int SCR_WIDTH = 1280;
+constexpr unsigned int SCR_HEIGHT = 720;
+constexpr unsigned int MAX_ENTITIES = 16384; // dostatečně pro 4000 bricks + paddle + balls
+using Entity = uint32_t;
+const Entity INVALID_ENTITY = UINT32_MAX;
+constexpr GLuint CAMERA_UBO_BINDING = 0;
+
+namespace Config {
+namespace World {
+constexpr float MIN_X = -60.0f;
+constexpr float MAX_X = 60.0f;
+constexpr float MIN_Y = -40.0f;
+constexpr float MAX_Y = 40.0f;
 }
-float fpsTimer = 0.0f;
-int frameCount = 0;
-//
-// -------------------- Utility Helpers --------------------
-//
-static void checkShaderCompile(GLuint shader, const char* name) {
-    GLint ok = GL_FALSE;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        char buf[1024]; glGetShaderInfoLog(shader, 1024, NULL, buf);
-        std::cerr << "[Shader compile error] " << name << ":\n" << buf << "\n";
-    }
+namespace Bricks {
+constexpr int ROWS = 10;
+constexpr int COLS = 30;
+// šířka hracího pole
+constexpr float FIELD_WIDTH = Config::World::MAX_X - Config::World::MIN_X;
+// šířka jednoho bricku tak, aby vyplnil šířku
+constexpr float SCALE_X = FIELD_WIDTH / COLS;
+// fixní výška bricku (např. původní 1.0f)
+constexpr float SCALE_Y = 1.0f;
+// start levý horní roh
+constexpr float START_X = Config::World::MIN_X + SCALE_X*0.5f;
+constexpr float START_Y = 2.0f; // původní START_Y
+constexpr float SPACING_X = 0.0f;
+constexpr float SPACING_Y = 0.5f; // volitelné odsazení mezi řadami
+constexpr glm::vec3 SCALE = {SCALE_X - SPACING_X, SCALE_Y, 1.0f};
 }
-static void checkProgramLink(GLuint prog, const char* name) {
-    GLint ok = GL_FALSE;
-    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
-    if (!ok) {
-        char buf[1024]; glGetProgramInfoLog(prog, 1024, NULL, buf);
-        std::cerr << "[Program link error] " << name << ":\n" << buf << "\n";
-    }
+namespace Paddle {
+constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
+constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
+constexpr float SPEED = 50.0f;
 }
-
-//
-// -------------------- ECS definitions --------------------
-//
-using EntityID = unsigned int;
-
-struct TransformComponent {
-    glm::vec3 pos{0.0f};
-    glm::vec3 scale{1.0f};
-    glm::vec3 rotationAxis{0.0f,1.0f,0.0f};
-    float angle = 0.0f;
-};
-
-struct RenderComponent {
-    GLuint vao = 0;
-    GLsizei indexCount = 0;
-    glm::vec4 color{1.0f};
-};
-
-struct BallComponent {
-    glm::vec3 velocity;
-    float radius;
-};
-
-struct PaddleComponent {};
-struct BrickComponent {};
-struct ScoreComponent {
-    int value = 0;
-};
-struct LivesComponent {
-    int value = Constants::INITIAL_LIVES;
-};
-
-class EntityManager {
-public:
-    std::unordered_map<EntityID, TransformComponent> transforms;
-    std::unordered_map<EntityID, RenderComponent> renders;
-    std::unordered_map<EntityID, BallComponent> balls;
-    std::unordered_map<EntityID, PaddleComponent> paddles;
-    std::unordered_map<EntityID, BrickComponent> bricks;
-    std::unordered_map<EntityID, ScoreComponent> scores;
-    std::unordered_map<EntityID, LivesComponent> lives;
-
-    std::vector<EntityID> entities;            // all entity ids (for iteration order)
-    std::vector<EntityID> brickOrder;          // brick ids in a stable order for instancing
-    EntityID nextID = 0;
-
-    EntityID createEntity() {
-        EntityID id = nextID++;
-        entities.push_back(id);
-        transforms[id] = TransformComponent{};
-        renders[id] = RenderComponent{};
-        return id;
-    }
-
-    void destroyEntity(EntityID id) {
-        // remove from entities vector
-        entities.erase(std::remove(entities.begin(), entities.end(), id), entities.end());
-        // remove from brickOrder if present
-        brickOrder.erase(std::remove(brickOrder.begin(), brickOrder.end(), id), brickOrder.end());
-        // erase component maps
-        transforms.erase(id);
-        renders.erase(id);
-        balls.erase(id);
-        paddles.erase(id);
-        bricks.erase(id);
-        scores.erase(id);
-        lives.erase(id);
-    }
-
-    void reset() {
-        entities.clear();
-        brickOrder.clear();
-        transforms.clear();
-        renders.clear();
-        balls.clear();
-        paddles.clear();
-        bricks.clear();
-        scores.clear();
-        lives.clear();
-        nextID = 0;
-    }
-};
-
-//
-// -------------------- Mesh creation --------------------
-// Minimal cube (position only) and sphere (position only).
-//
-struct Mesh {
-    GLuint vao=0,vbo=0, ebo=0;
-    GLsizei indexCount = 0;
-};
-
-Mesh makeCube() {
-    Mesh m;
-    // 8 verts, 36 indices
-    float vertices[] = {
-        -0.5f,-0.5f,-0.5f,
-        0.5f,-0.5f,-0.5f,
-        0.5f, 0.5f,-0.5f,
-        -0.5f, 0.5f,-0.5f,
-        -0.5f,-0.5f, 0.5f,
-        0.5f,-0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-        -0.5f, 0.5f, 0.5f
-    };
-    unsigned int indices[] = {
-        0,1,2, 2,3,0,
-        4,5,6, 6,7,4,
-        0,1,5, 5,4,0,
-        2,3,7, 7,6,2,
-        0,3,7, 7,4,0,
-        1,2,6, 6,5,1
-    };
-    m.indexCount = 36;
-    glGenVertexArrays(1, &m.vao);
-    glGenBuffers(1, &m.vbo);
-    glGenBuffers(1, &m.ebo);
-
-    glBindVertexArray(m.vao);
-    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
-
-    glBindVertexArray(0);
-    return m;
+namespace Ball {
+constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
+constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
+constexpr float RADIUS = 1.0f;
+constexpr float SPEEDUP_FACTOR = 1.05f; // každá kolize zrychlí o 5%
+constexpr float MAX_SPEED = 30.0f;      // maximální rychlost
+}
+constexpr int INITIAL_LIVES = 3;
+constexpr int SCORE_PER_BRICK = 10;
 }
 
-// Sphere generator (indexed)
-Mesh makeSphere(int latSeg = 16, int longSeg = 16, float radius = 0.5f) {
-    Mesh m;
-    std::vector<float> verts;
-    std::vector<unsigned int> idx;
-    verts.reserve((latSeg+1)*(longSeg+1)*3);
-    for (int y=0;y<=latSeg;y++){
-        float theta = (float)y * glm::pi<float>() / latSeg;
-        float sinT = sin(theta), cosT = cos(theta);
-        for (int x=0;x<=longSeg;x++){
-            float phi = (float)x * 2.0f * glm::pi<float>() / longSeg;
-            float sinP = sin(phi), cosP = cos(phi);
-            verts.push_back(radius * cosP * sinT);
-            verts.push_back(radius * cosT);
-            verts.push_back(radius * sinP * sinT);
-        }
-    }
-    for (int y=0;y<latSeg;y++){
-        for (int x=0;x<longSeg;x++){
-            int a = y*(longSeg+1)+x;
-            int b = a+longSeg+1;
-            idx.push_back(a); idx.push_back(b); idx.push_back(a+1);
-            idx.push_back(b); idx.push_back(b+1); idx.push_back(a+1);
-        }
-    }
-    m.indexCount = (GLsizei)idx.size();
-    glGenVertexArrays(1, &m.vao);
-    glGenBuffers(1, &m.vbo);
-    glGenBuffers(1, &m.ebo);
-
-    glBindVertexArray(m.vao);
-    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
-    glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-
-    glBindVertexArray(0);
-    return m;
+// -------------------- Random --------------------
+static std::mt19937 rng{std::random_device{}()};
+static float frand(float a = 0.0f, float b = 1.0f){
+    std::uniform_real_distribution<float> d(a,b);
+    return d(rng);
+}
+static glm::vec4 randColor(){
+    return glm::vec4(frand(0.3f,1.0f), frand(0.3f,1.0f), frand(0.3f,1.0f), 1.0f);
 }
 
-const char* vertexShaderSrc = R"glsl(
+// -------------------- Minimal shader helpers --------------------
+static void checkShaderCompile(GLuint sh, const char* name){
+    GLint ok=GL_FALSE; glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if(!ok){ char buf[1024]; glGetShaderInfoLog(sh, 1024, NULL, buf); std::cerr<<"Shader "<<name<<" compile error:\n"<<buf<<"\n"; }
+}
+static void checkProgramLink(GLuint p, const char* name){
+    GLint ok=GL_FALSE; glGetProgramiv(p, GL_LINK_STATUS, &ok);
+    if(!ok){ char buf[1024]; glGetProgramInfoLog(p, 1024, NULL, buf); std::cerr<<"Program "<<name<<" link error:\n"<<buf<<"\n"; }
+}
+
+const char* vertexSrc = R"glsl(
 #version 330 core
-
-layout(location = 0) in vec3 aPos;
-
-// instance model matrix (mat4 takes 4 attribute slots)
-
-layout(location = 1) in vec4 aModelRow0;
-layout(location = 2) in vec4 aModelRow1;
-layout(location = 3) in vec4 aModelRow2;
-layout(location = 4) in vec4 aModelRow3;
-layout(location = 5) in vec4 aColor;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec4 aModelRow0;
+layout(location=2) in vec4 aModelRow1;
+layout(location=3) in vec4 aModelRow2;
+layout(location=4) in vec4 aModelRow3;
+layout(location=5) in vec4 aColor;
 
 layout(std140) uniform Camera {
     mat4 view;
@@ -278,7 +141,7 @@ out vec3 Normal;
 
 void main(){
     mat4 model = mat4(aModelRow0, aModelRow1, aModelRow2, aModelRow3);
-    vec4 worldPos = model * vec4(aPos, 1.0);
+    vec4 worldPos = model * vec4(aPos,1.0);
     vWorldPos = worldPos.xyz;
     vColor = aColor;
     Normal = normalize(mat3(model) * aPos);
@@ -286,647 +149,811 @@ void main(){
 }
 )glsl";
 
-
-
-const char* fragmentShaderSrc = R"glsl(
+const char* fragmentSrc = R"glsl(
 #version 330 core
-
 in vec3 vWorldPos;
 in vec3 Normal;
 in vec4 vColor;
 out vec4 FragColor;
-
-void main() {
+void main(){
     vec3 N = normalize(Normal);
-    vec3 lightPos = vec3(10.0, 20.0, 10.0);
+    vec3 lightPos = vec3(50.0,100.0,50.0);
     vec3 L = normalize(lightPos - vWorldPos);
-    vec3 V = normalize(vec3(0.0, 15.0, 35.0) - vWorldPos); // camera pos baked
-    // simple Blinn-Phong
-    float diff = max(dot(N, L), 0.0);
-    vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), 64.0);
+    vec3 V = normalize(vec3(0.0,50.0,100.0) - vWorldPos);
+    float diff = max(dot(N,L), 0.0);
+    vec3 H = normalize(L+V);
+    float spec = pow(max(dot(N,H),0.0),64.0);
     vec3 base = vColor.rgb * 0.6 + vColor.rgb * 0.4 * diff;
-    vec3 color = base + vec3(1.0) * 0.6 * spec; // add highlight
+    vec3 color = base + vec3(1.0) * 0.6 * spec;
     FragColor = vec4(color, vColor.a);
 }
 )glsl";
-//
-// -------------------- Rendering / ECS Systems --------------------
-//
 
-struct GLResources {
-    // main shader
-    GLuint program = 0;
-    GLuint cameraUBO = 0;
-    Mesh cubeMesh;
-    Mesh sphereMesh;
-    GLuint instanceVBO = 0; // model matrices
-    GLuint colorVBO = 0;    // per-instance colors
-    // VAO configured for instanced drawing (shares cube mesh VBO/EBO)
-    GLuint instancedVAO = 0;
+
+// -------------------- ECS Implementation (dense/sparse + ComponentArray) --------------------
+
+class EntityPool {
+public:
+    EntityPool(){
+        dense.reserve(MAX_ENTITIES);
+        sparse.fill(UINT32_MAX);
+        alive.fill(false);
+        nextId = 0;
+    }
+    Entity create(){
+        assert(dense.size() < MAX_ENTITIES && "max entities exceeded");
+        Entity id = nextId++;
+        dense.push_back(id);
+        sparse[id] = static_cast<uint32_t>(dense.size()-1);
+        alive[id] = true;
+        return id;
+    }
+    void destroy(Entity e){
+        assert(e < nextId);
+        uint32_t idx = sparse[e];
+        assert(idx != UINT32_MAX && "destroy non-existing");
+        Entity last = dense.back();
+        dense[idx] = last;
+        sparse[last] = idx;
+        dense.pop_back();
+        sparse[e] = UINT32_MAX;
+        alive[e] = false;
+    }
+    bool valid(Entity e) const {
+        return e < nextId && alive[e];
+    }
+    const std::vector<Entity>& all() const { return dense; }
+private:
+    std::vector<Entity> dense;
+    std::array<uint32_t, MAX_ENTITIES> sparse;
+    std::array<bool, MAX_ENTITIES> alive;
+    Entity nextId;
 };
 
-static GLResources glr;
+struct IComponentArray { virtual ~IComponentArray() = default; virtual void entityDestroyed(Entity) = 0; };
 
-static void initGLResources() {
-    // compile shaders
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vertexShaderSrc, NULL);
-    glCompileShader(vs);
-    checkShaderCompile(vs, "vertex");
-
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fragmentShaderSrc, NULL);
-    glCompileShader(fs);
-    checkShaderCompile(fs, "fragment");
-
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    checkProgramLink(prog, "program");
-
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-    glr.program = prog;
-
-    // create UBO for camera (view + projection) - std140 alignment mat4 is 16-byte aligned
-    glGenBuffers(1, &glr.cameraUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, glr.cameraUBO);
-    glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    glBindBufferBase(GL_UNIFORM_BUFFER, Constants::CAMERA_UBO_BINDING, glr.cameraUBO);
-
-    // associate the uniform block index with the binding point
-    GLuint blockIndex = glGetUniformBlockIndex(glr.program, "Camera");
-    if (blockIndex != GL_INVALID_INDEX) {
-        glUniformBlockBinding(glr.program, blockIndex, Constants::CAMERA_UBO_BINDING);
+template<typename T>
+class ComponentArray : public IComponentArray {
+public:
+    ComponentArray(){
+        entityToIndex.fill(npos);
     }
+    void insert(Entity e, T comp){
+        assert(e < MAX_ENTITIES);
+        assert(entityToIndex[e] == npos && "component exists");
+        size_t idx = data.size();
+        data.push_back(std::move(comp));
+        indexToEntity.push_back(e);
+        entityToIndex[e] = idx;
+    }
+    void remove(Entity e){
+        size_t idx = entityToIndex[e];
+        assert(idx != npos && "remove non-existing");
+        size_t last = data.size()-1;
+        if(idx != last){
+            data[idx] = std::move(data[last]);
+            Entity lastE = indexToEntity[last];
+            indexToEntity[idx] = lastE;
+            entityToIndex[lastE] = idx;
+        }
+        data.pop_back();
+        indexToEntity.pop_back();
+        entityToIndex[e] = npos;
+    }
+    bool has(Entity e) const { return entityToIndex[e] != npos; }
+    T& get(Entity e){ size_t idx = entityToIndex[e]; assert(idx != npos); return data[idx]; }
+    const T& get(Entity e) const { size_t idx = entityToIndex[e]; assert(idx != npos); return data[idx]; }
+    const std::vector<T>& rawData() const { return data; }
+    const std::vector<Entity>& rawEntities() const { return indexToEntity; }
+    void entityDestroyed(Entity e) override { if(has(e)) remove(e); }
+    size_t size() const { return data.size(); }
+private:
+    static constexpr size_t npos = SIZE_MAX;
+    std::vector<T> data;
+    std::vector<Entity> indexToEntity;
+    std::array<size_t, MAX_ENTITIES> entityToIndex;
+};
 
-    // create meshes
-    glr.cubeMesh = makeCube();
-    glr.sphereMesh = makeSphere(16, 16, Constants::BALL_RADIUS);
+class ComponentManager {
+public:
+    template<typename T>
+    void add(Entity e, T comp){
+        auto id = std::type_index(typeid(T));
+        auto it = arrays.find(id);
+        if(it == arrays.end()){
+            auto arr = std::make_unique<ComponentArray<T>>();
+            arr->insert(e, std::move(comp));
+            arrays[id] = std::move(arr);
+        } else {
+            static_cast<ComponentArray<T>*>(it->second.get())->insert(e, std::move(comp));
+        }
+    }
+    template<typename T>
+    void remove(Entity e){
+        auto id = std::type_index(typeid(T));
+        auto it = arrays.find(id);
+        if(it != arrays.end()) static_cast<ComponentArray<T>*>(it->second.get())->remove(e);
+    }
+    template<typename T>
+    bool has(Entity e) const {
+        auto id = std::type_index(typeid(T));
+        auto it = arrays.find(id);
+        if(it == arrays.end()) return false;
+        return static_cast<const ComponentArray<T>*>(it->second.get())->has(e);
+    }
+    template<typename T>
+    T& get(Entity e){
+        auto id = std::type_index(typeid(T));
+        auto it = arrays.find(id);
+        assert(it != arrays.end());
+        return static_cast<ComponentArray<T>*>(it->second.get())->get(e);
+    }
+    template<typename T>
+    const ComponentArray<T>& getArray() const {
+        auto id = std::type_index(typeid(T));
+        auto it = arrays.find(id);
+        assert(it != arrays.end());
+        return *static_cast<const ComponentArray<T>*>(it->second.get());
+    }
+    void entityDestroyed(Entity e){
+        for(auto &kv : arrays) kv.second->entityDestroyed(e);
+    }
+private:
+    std::unordered_map<std::type_index, std::unique_ptr<IComponentArray>> arrays;
+};
 
-    // create instancing buffers (empty initially)
-    glGenBuffers(1, &glr.instanceVBO);
-    glGenBuffers(1, &glr.colorVBO);
+class Registry {
+public:
+    Entity create(){ return pool.create(); }
+    void destroy(Entity e){ pool.destroy(e); comps.entityDestroyed(e); }
+    template<typename T> void add(Entity e, T comp){ comps.add<T>(e, std::move(comp)); }
+    template<typename T> void remove(Entity e){ comps.remove<T>(e); }
+    template<typename T> bool has(Entity e) const { return comps.has<T>(e); }
+    template<typename T> T& get(Entity e){ return comps.get<T>(e); }
+    const std::vector<Entity>& allEntities() const { return pool.all(); }
 
-    // prepare instanced VAO: reuse cubeMesh VBO/EBO but set instance attribs
-    glGenVertexArrays(1, &glr.instancedVAO);
-    glBindVertexArray(glr.instancedVAO);
+    template<typename... Components, typename Func>
+    void view(Func func){
+        // choose first component's array as base to iterate for locality
+        using Base = std::tuple_element_t<0, std::tuple<Components...>>;
+        const auto& baseArr = comps.getArray<Base>();
+        const auto& entities = baseArr.rawEntities();
+        for(size_t i=0;i<entities.size();++i){
+            Entity e = entities[i];
+            if(!pool.valid(e)) continue;
+            if((comps.has<Components>(e) && ...)){
+                func(e, comps.get<Components>(e)...);
+            }
+        }
+    }
+private:
+    EntityPool pool;
+    ComponentManager comps;
+};
 
-    // bind base vertex buffer and index buffer from cube mesh
-    glBindBuffer(GL_ARRAY_BUFFER, glr.cubeMesh.vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glr.cubeMesh.ebo);
-    // position attribute (location 0)
+// -------------------- Components --------------------
+struct Transform { glm::vec3 pos{0.0f}; glm::vec3 scale{1.0f}; glm::mat4 model{1.0f}; };
+struct Render   { glm::vec4 color{1.0f}; };
+struct Ball     { glm::vec3 velocity{0.0f}; float radius{0.5f}; };
+struct Paddle   {};
+struct Brick    {};
+struct Score    { int value = 0; };
+struct Lives    { int value = Config::INITIAL_LIVES; };
+
+// -------------------- Mesh helpers --------------------
+struct Mesh {
+    GLuint vao = 0, vbo = 0, ebo = 0;
+    GLsizei indexCount = 0;
+};
+
+Mesh makeCubeMesh(){
+    Mesh m;
+    float vertices[] = {
+        // a simple cube (positions only)
+        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f, -0.5f, 0.5f,-0.5f,
+        -0.5f,-0.5f, 0.5f,  0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f
+    };
+    unsigned int indices[] = {
+        0,1,2, 2,3,0, 4,5,6, 6,7,4, 0,1,5, 5,4,0,
+        2,3,7, 7,6,2, 0,3,7, 7,4,0, 1,2,6, 6,5,1
+    };
+    glGenVertexArrays(1,&m.vao);
+    glGenBuffers(1,&m.vbo);
+    glGenBuffers(1,&m.ebo);
+    glBindVertexArray(m.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
-
-    // instance model matrix uses locations 1..4 (each vec4)
-    glBindBuffer(GL_ARRAY_BUFFER, glr.instanceVBO);
-    // allocate a small initial size - will update dynamically
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * 32, NULL, GL_DYNAMIC_DRAW);
-    GLsizei vec4Size = sizeof(glm::vec4);
-    for (unsigned int i = 0; i < 4; ++i) {
-        GLuint loc = 1 + i;
-        glEnableVertexAttribArray(loc);
-        glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * vec4Size));
-        glVertexAttribDivisor(loc, 1);
-    }
-
-    // per-instance color at location 5
-    glBindBuffer(GL_ARRAY_BUFFER, glr.colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * 32, NULL, GL_DYNAMIC_DRAW);
-    glEnableVertexAttribArray(5);
-    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glVertexAttribDivisor(5, 1);
-
     glBindVertexArray(0);
-    // leave buffers bound to their objects
+    m.indexCount = (GLsizei)(sizeof(indices)/sizeof(indices[0]));
+    return m;
 }
 
-static void cleanupGLResources() {
-    if (glr.instanceVBO) glDeleteBuffers(1, &glr.instanceVBO);
-    if (glr.colorVBO)    glDeleteBuffers(1, &glr.colorVBO);
-    if (glr.cameraUBO)   glDeleteBuffers(1, &glr.cameraUBO);
-    if (glr.instancedVAO) glDeleteVertexArrays(1, &glr.instancedVAO);
-
-    if (glr.cubeMesh.vbo) glDeleteBuffers(1, &glr.cubeMesh.vbo);
-    if (glr.cubeMesh.ebo) glDeleteBuffers(1, &glr.cubeMesh.ebo);
-    if (glr.cubeMesh.vao) glDeleteVertexArrays(1, &glr.cubeMesh.vao);
-
-    if (glr.sphereMesh.vbo) glDeleteBuffers(1, &glr.sphereMesh.vbo);
-    if (glr.sphereMesh.ebo) glDeleteBuffers(1, &glr.sphereMesh.ebo);
-    if (glr.sphereMesh.vao) glDeleteVertexArrays(1, &glr.sphereMesh.vao);
-
-    if (glr.program) glDeleteProgram(glr.program);
-}
-
-//
-// -------------------- Game setup / helper --------------------
-//
-static void updateCameraUBO(const glm::mat4& view, const glm::mat4& proj) {
-    glBindBuffer(GL_UNIFORM_BUFFER, glr.cameraUBO);
-    // write view then proj (std140 / mat4)
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
-    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-
-static void buildInstancingBuffersForBricks(EntityManager& em) {
-    // build model matrix array and color array in order of em.brickOrder
-    size_t n = em.brickOrder.size();
-    std::vector<glm::mat4> models;
-    models.reserve(n);
-    std::vector<glm::vec4> colors;
-    colors.reserve(n);
-
-    for (EntityID id : em.brickOrder) {
-        auto &t = em.transforms[id];
-        auto &r = em.renders[id];
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, t.pos);
-        model = glm::rotate(model, t.angle, t.rotationAxis);
-        model = glm::scale(model, t.scale);
-        models.push_back(model);
-        colors.push_back(r.color);
+Mesh makeSphereMesh(int latSeg = 16, int longSeg = 16, float radius = Config::Ball::RADIUS){
+    Mesh m;
+    std::vector<float> verts;
+    std::vector<unsigned int> idx;
+    for(int y=0;y<=latSeg;y++){
+        float theta = (float)y * glm::pi<float>() / latSeg;
+        float sinT = sin(theta), cosT = cos(theta);
+        for(int x=0;x<=longSeg;x++){
+            float phi = (float)x * 2.0f * glm::pi<float>() / longSeg;
+            float sinP=sin(phi), cosP=cos(phi);
+            verts.push_back(radius * cosP * sinT);
+            verts.push_back(radius * cosT);
+            verts.push_back(radius * sinP * sinT);
+        }
     }
-
-    // update instance VBO and color VBO (use glBufferData for resize, glBufferSubData otherwise)
-    glBindBuffer(GL_ARRAY_BUFFER, glr.instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, models.size() * sizeof(glm::mat4), models.data(), GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, glr.colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec4), colors.data(), GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    for(int y=0;y<latSeg;y++){
+        for(int x=0;x<longSeg;x++){
+            int a = y*(longSeg+1)+x;
+            int b = a + longSeg + 1;
+            idx.push_back(a); idx.push_back(b); idx.push_back(a+1);
+            idx.push_back(b); idx.push_back(b+1); idx.push_back(a+1);
+        }
+    }
+    glGenVertexArrays(1,&m.vao);
+    glGenBuffers(1,&m.vbo);
+    glGenBuffers(1,&m.ebo);
+    glBindVertexArray(m.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
+    glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,3*sizeof(float),(void*)0);
+    glBindVertexArray(0);
+    m.indexCount = (GLsizei)idx.size();
+    return m;
 }
 
-//
-// -------------------- Systems --------------------
-//
+// -------------------- Game class integrating ECS + GL --------------------
 
-void InputSystem(EntityManager& em, GLFWwindow* window, float dt) {
-    // mouse X converted to world X in [-15,15]
-    double mx, my;
-    glfwGetCursorPos(window, &mx, &my);
-    int w,h; glfwGetWindowSize(window, &w, &h);
-    float worldX = static_cast<float>(mx) / float(w) * (Constants::WORLD_MAX_X - Constants::WORLD_MIN_X) + Constants::WORLD_MIN_X;
-
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
-
-            glfwSetWindowShouldClose(window, true);
-
-    }
-
-    for (auto &kv : em.paddles) {
-        EntityID pid = kv.first;
-        auto &t = em.transforms[pid];
-
-        // keyboard
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) t.pos.x -= Constants::PADDLE_SPEED * dt;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) t.pos.x += Constants::PADDLE_SPEED * dt;
-
-        // mouse: smooth follow
-        float smooth = 10.0f;
-        t.pos.x += (worldX - t.pos.x) * smooth * dt;
-
-        // clamp within world X bounds
-        float halfW = t.scale.x * 0.5f;
-        if (t.pos.x - halfW < Constants::WORLD_MIN_X) t.pos.x = Constants::WORLD_MIN_X + halfW;
-        if (t.pos.x + halfW > Constants::WORLD_MAX_X) t.pos.x = Constants::WORLD_MAX_X - halfW;
-    }
-}
-
-class PhysicsSystem {
+class Game {
 public:
-    EntityManager &em;
-    glm::vec3 paddleStart;
-    glm::vec3 ballStart;
-    glm::vec3 ballVelStart;
-    std::vector<EntityID> destroyed;
+    Game() = default;
+    ~Game(){ shutdown(); }
 
-    PhysicsSystem(EntityManager& e)
-        : em(e), paddleStart(Constants::PADDLE_START_POS),
-        ballStart(Constants::BALL_START_POS),
-        ballVelStart(Constants::BALL_START_VEL)
-    {
-        destroyed.reserve(8);
-    }
-    void reset(const glm::vec3& paddlePos,
-               const glm::vec3& ballPos,
-               const glm::vec3& ballVel)
-    {
-        paddleStart = paddlePos;
-        ballStart = ballPos;
-        ballVelStart = ballVel;
-    }
-    // returns true if game continues, false -> game over (lives exhausted)
-    bool update(float dt) {
-        bool needReset = false;
-        destroyed.clear();
-        // iterate over balls (normally one)
-        for (auto &kv : em.balls) {
-            EntityID bid = kv.first;
-            auto &ballT = em.transforms[bid];
-            auto &ballC = em.balls[bid];
+    // -------------------- GL helper classes --------------------
+    struct GLBuffer {
+        GLuint id = 0;
+        GLenum target = GL_ARRAY_BUFFER;
+        void* mappedPtr = nullptr;
+        size_t size = 0;
 
-            // move
-            ballT.pos += ballC.velocity * dt;
-            ballT.pos.z = 0.0f; // fixed 2D plane
+        void init(GLenum t = GL_ARRAY_BUFFER){
+            target = t;
+            glGenBuffers(1, &id);
+        }
+        ~GLBuffer(){
+            if(mappedPtr) glUnmapBuffer(target);
+            if(id) glDeleteBuffers(1,&id);
+        }
+        void allocate(size_t sz){
+            size = sz;
+            bind();
+            glBufferStorage(target, sz, nullptr,
+                            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+            mappedPtr = glMapBufferRange(target, 0, sz,
+                                         GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+            if(!mappedPtr) std::cerr<<"Persistent mapping failed\n";
+        }
+        void bind() const { glBindBuffer(target, id); }
+        void setSubData(const void* data, size_t sz, size_t offset=0){
+            memcpy((char*)mappedPtr + offset, data, sz);
+        }
+    };
 
-            // walls
-            if (ballT.pos.x - ballC.radius < Constants::WORLD_MIN_X) {
-                ballT.pos.x = Constants::WORLD_MIN_X + ballC.radius;
-                ballC.velocity.x *= -1.0f;
-                std::cout << "Ball hit left wall\n";
-            }
-            if (ballT.pos.x + ballC.radius > Constants::WORLD_MAX_X) {
-                ballT.pos.x = Constants::WORLD_MAX_X - ballC.radius;
-                ballC.velocity.x *= -1.0f;
-                std::cout << "Ball hit right wall\n";
-            }
-            if (ballT.pos.y + ballC.radius > Constants::WORLD_MAX_Y) {
-                ballT.pos.y = Constants::WORLD_MAX_Y - ballC.radius;
-                ballC.velocity.y *= -1.0f;
-                std::cout << "Ball hit top wall\n";
-            }
 
-            // paddle collisions
-            for (auto &pp : em.paddles) {
-                EntityID pid = pp.first;
-                auto &pT = em.transforms[pid];
-                if (aabbCollision2D(pT.pos, pT.scale, ballT.pos, ballC.radius)) {
-                    float rel = (ballT.pos.x - pT.pos.x) / (pT.scale.x * 0.5f);
-                    rel = glm::clamp(rel, -1.0f, 1.0f);
-                    float speed = glm::length(glm::vec2(ballC.velocity.x, ballC.velocity.y));
-                    float angle = rel * glm::radians(45.0f);
-                    ballC.velocity.x = speed * sin(angle);
-                    ballC.velocity.y = speed * cos(angle);
-                    ballT.pos.y = pT.pos.y + pT.scale.y * 0.5f + ballC.radius;
-                    std::cout << "Ball hit paddle\n";
+    struct UBO {
+        GLuint id = 0;
+        UBO() = default;
+        void init(){
+            glGenBuffers(1,&id);
+        }
+        ~UBO(){ if(id) glDeleteBuffers(1,&id); }
+        void bind() const { glBindBuffer(GL_UNIFORM_BUFFER, id); }
+        void allocate(size_t s){ bind(); glBufferData(GL_UNIFORM_BUFFER, s, nullptr, GL_DYNAMIC_DRAW); }
+        void setSubData(const void* data, size_t s, size_t offset=0){ bind(); glBufferSubData(GL_UNIFORM_BUFFER, offset, s, data); }
+    };
+
+    // -------------------- PhysicsSystem --------------------
+    struct PhysicsSystem {
+        Registry* reg = nullptr;                  // pointer na registry
+        std::vector<Entity> toDestroy;
+        bool* runningPtr = nullptr;               // pointer na Game::running
+
+        PhysicsSystem(Registry* r = nullptr, bool* run = nullptr)
+            : reg(r), runningPtr(run) { toDestroy.reserve(32); }
+
+        void setRunningPtr(bool* run){ runningPtr = run; }
+
+        void reset(){
+            if(!reg) return;
+            reg->view<Paddle, Transform>([](Entity, Paddle&, Transform& t){
+                t.pos = Config::Paddle::START_POS;
+                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+            });
+            reg->view<Ball, Transform>([](Entity, Ball& b, Transform& t){
+                t.pos = Config::Ball::START_POS;
+                b.velocity = Config::Ball::START_VEL;
+                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+            });
+        }
+
+        bool update(float dt){
+            if(!reg) return true;
+
+            reg->view<Ball, Transform, Ball>([&](Entity e, Ball& b, Transform& t, Ball& unused){
+                t.pos += b.velocity * dt;
+
+                // --- odraz od stěn ---
+                if(t.pos.x - b.radius < Config::World::MIN_X || t.pos.x + b.radius > Config::World::MAX_X){
+                    b.velocity.x *= -1.0f;
+                    t.pos.x = glm::clamp(t.pos.x, Config::World::MIN_X + b.radius, Config::World::MAX_X - b.radius);
                 }
-            }
-
-            // brick collisions (collect destructions, update score)
-
-            for (auto &bb : em.bricks) {
-                EntityID brickID = bb.first;
-                auto &bT = em.transforms[brickID];
-                if (aabbCollision2D(bT.pos, bT.scale, ballT.pos, ballC.radius)) {
-                    glm::vec2 dir = glm::vec2(ballT.pos.x - bT.pos.x, ballT.pos.y - bT.pos.y);
-                    if (std::abs(dir.x) > std::abs(dir.y)) ballC.velocity.x *= -1.0f;
-                    else ballC.velocity.y *= -1.0f;
-                    destroyed.push_back(brickID);
+                if(t.pos.y + b.radius > Config::World::MAX_Y){
+                    b.velocity.y *= -1.0f;
+                    t.pos.y = Config::World::MAX_Y - b.radius;
                 }
-            }
-            if (!destroyed.empty()) {
-                for (EntityID b : destroyed) {
-                    em.destroyEntity(b);
-                    std::cout << "Ball hit brick " << b << "\n";
-                    for (auto &sd : em.scores) {
-                        sd.second.value += Constants::SCORE_PER_BRICK;
-                        std::cout << "Score: " << sd.second.value << "\n";
+
+                reg->view<Paddle, Transform>([&](Entity, Paddle&, Transform& paddle){
+                    if(aabbCollision2D(paddle.pos, paddle.scale, t.pos, b.radius)){
+                        b.velocity.y = fabs(b.velocity.y);
+                        t.pos.y = paddle.pos.y + paddle.scale.y*0.5f + b.radius;
+
+                        // --- zrychlení míče ---
+                        b.velocity *= Config::Ball::SPEEDUP_FACTOR;
+                        if(glm::length(b.velocity) > Config::Ball::MAX_SPEED)
+                            b.velocity = glm::normalize(b.velocity) * Config::Ball::MAX_SPEED;
                     }
+                });
+
+                // --- odraz od bricks ---
+                std::vector<Entity> destroyedBricks;
+                reg->view<Brick, Transform>([&](Entity brick, Brick&, Transform& brickT){
+                    if(aabbCollision2D(brickT.pos, brickT.scale, t.pos, b.radius)){
+                        destroyedBricks.push_back(brick);
+
+                        // invert Y
+                        b.velocity.y *= -1.0f;
+
+                        // --- zrychlení míče ---
+                        b.velocity *= Config::Ball::SPEEDUP_FACTOR;
+                        if(glm::length(b.velocity) > Config::Ball::MAX_SPEED)
+                            b.velocity = glm::normalize(b.velocity) * Config::Ball::MAX_SPEED;
+                    }
+                });
+
+
+                for(Entity brick : destroyedBricks){
+                    reg->destroy(brick);
+                    reg->view<Score>([&](Entity, Score& s){ s.value += Config::SCORE_PER_BRICK; });
                 }
-                // rebuilt instancing order/buffers will be done in render step
-            }
 
-            // fell below world
-            if (ballT.pos.y - ballC.radius < Constants::WORLD_MIN_Y) {
-                for (auto &lv : em.lives) {
-                    lv.second.value--;
-                    std::cout << "Life lost! Lives left: " << lv.second.value << "\n";
+                // --- smrt (míček pod spodní hranou) ---
+                if(t.pos.y - b.radius < Config::World::MIN_Y){
+                    reg->view<Lives>([&](Entity, Lives& l){
+                        l.value -= 1;
+                        if(l.value <= 0){
+                            // konec hry
+                            if(runningPtr) *runningPtr = false;
+                        }
+                    });
+                    reset();
                 }
-                needReset = true;
-            }
+
+                // update model matrix
+                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+            });
+
+            return runningPtr ? *runningPtr : true;
         }
 
-        if (needReset) {
-            // reset ball+paddle positions (preserve lives/score)
-            for (auto &pp : em.paddles) {
-                em.transforms[pp.first].pos = paddleStart;
-            }
-            for (auto &bb : em.balls) {
-                em.transforms[bb.first].pos = ballStart;
-                em.balls[bb.first].velocity = ballVelStart;
-            }
+        static bool aabbCollision2D(const glm::vec3& boxPos,const glm::vec3& boxScale,
+                                    const glm::vec3& ballPos,float radius){
+            return (ballPos.x + radius > boxPos.x - boxScale.x*0.5f &&
+                    ballPos.x - radius < boxPos.x + boxScale.x*0.5f &&
+                    ballPos.y + radius > boxPos.y - boxScale.y*0.5f &&
+                    ballPos.y - radius < boxPos.y + boxScale.y*0.5f);
         }
+    };
 
-        // game over if any lives <= 0 (supports single player)
-        for (auto &lv : em.lives) {
-            if (lv.second.value <= 0) return false;
-        }
-        return true;
-    }
+    // -------------------- Členové Game --------------------
+    GLFWwindow* window = nullptr;
+    Registry registry;
+    PhysicsSystem physics;  // pointer na registry přiřadíme v init
 
-private:
-    static bool aabbCollision2D(const glm::vec3& boxPos,const glm::vec3& boxScale,
-                                const glm::vec3& ballPos,float radius) {
-        return (ballPos.x + radius > boxPos.x - boxScale.x*0.5f &&
-                ballPos.x - radius < boxPos.x + boxScale.x*0.5f &&
-                ballPos.y + radius > boxPos.y - boxScale.y*0.5f &&
-                ballPos.y - radius < boxPos.y + boxScale.y*0.5f);
-    }
-};
+    GLuint program = 0;
+    Mesh cubeMesh{}, sphereMesh{};
+    GLBuffer instanceVBO, colorVBO;
+    UBO cameraUBO;
 
-
-//
-// UISystem using ImGui: shows score/lives and Game Over modal with restart.
-// Ensures popup opens only once when gameOver becomes true and closes on restart.
-//
-void UISystem(EntityManager& em, bool gameOver, bool &restartRequested, bool &popupOpened) {
-
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    ImGui::Begin("Game Info");
-    for (auto &kv : em.scores) {
-        ImGui::Text("Score: %d", kv.second.value);
-    }
-    for (auto &kv : em.lives) {
-        ImGui::Text("Lives: %d", kv.second.value);
-    }
-    ImGui::End();
-
-    if (gameOver) {
-        if (!popupOpened) {
-            ImGui::OpenPopup("Game Over!");
-            popupOpened = true;
-        }
-    }
-
-    if (ImGui::BeginPopupModal("Game Over!", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("You lost all your lives!\n");
-        ImGui::Separator();
-        if (ImGui::Button("Restart")) {
-            restartRequested = true;
-            ImGui::CloseCurrentPopup();
-        }
-        if (ImGui::Button("Quit")) {
-            // user can close window via ESC as well
-            // we'll set restartRequested = false; and rely on main loop to exit if chosen
-            restartRequested = false;
-            // close popup but main loop will handle quit when requested externally.
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
-
-    // Render ImGui onto current framebuffer
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-//
-// RenderSystem - draws bricks via instancing, draws paddle and ball normally
-//
-void RenderSystem(EntityManager &em, const glm::mat4& view, const glm::mat4& proj) {
-    // update camera UBO
-    updateCameraUBO(view, proj);
-
-    // prepare instancing data for bricks
-    buildInstancingBuffersForBricks(em);
-
-    glUseProgram(glr.program);
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f); // <--- PŘIDAT: Barva pozadí
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // <--- PŘIDAT: Vymazání bufferů
-    // Draw bricks with instancing
-    size_t instanceCount = em.brickOrder.size();
-    if (instanceCount > 0) {
-        glBindVertexArray(glr.instancedVAO);
-        glDrawElementsInstanced(GL_TRIANGLES, glr.cubeMesh.indexCount, GL_UNSIGNED_INT, 0, (GLsizei)instanceCount);
-        glBindVertexArray(0);
-    }
-
-    // Draw paddle and ball(s) individually (no instancing)
-    // Paddle(s) use cube mesh
-    for (auto &pp : em.paddles) {
-        EntityID pid = pp.first;
-        auto &t = em.transforms[pid];
-        auto &r = em.renders[pid];
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, t.pos);
-        model = glm::rotate(model, t.angle, t.rotationAxis);
-        model = glm::scale(model, t.scale);
-
-        // set model & color via uniforms (shader expects instance attribs, but we can set as a uniform fallback)
-        // We'll use a small fallback approach: create a temporary single-instance buffer and draw single element with instancing=1.
-        // Simpler approach: use the shader but upload model as instance buffer and call glDrawElementsInstanced with count=1.
-        // For clarity, we'll do that.
-        // Upload single model
-        glBindBuffer(GL_ARRAY_BUFFER, glr.instanceVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4), glm::value_ptr(model), GL_DYNAMIC_DRAW);
-        // upload single color
-        glBindBuffer(GL_ARRAY_BUFFER, glr.colorVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4), glm::value_ptr(r.color), GL_DYNAMIC_DRAW);
-
-        // draw single instance using instancedVAO (it uses cube mesh VBO/EBO)
-        glBindVertexArray(glr.instancedVAO);
-        glDrawElementsInstanced(GL_TRIANGLES, glr.cubeMesh.indexCount, GL_UNSIGNED_INT, 0, 1);
-        glBindVertexArray(0);
-    }
-
-    // Ball(s) - draw sphere(s)
-    // Use a simple path: reuse same shader but fill instance buffers with model & color for one instance
-    for (auto &bb : em.balls) {
-        EntityID bid = bb.first;
-        auto &t = em.transforms[bid];
-        auto &r = em.renders[bid];
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, t.pos);
-        model = glm::scale(model, t.scale);
-
-        // upload model & color to instance buffers
-        glBindBuffer(GL_ARRAY_BUFFER, glr.instanceVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4), glm::value_ptr(model), GL_DYNAMIC_DRAW);
-
-        glBindBuffer(GL_ARRAY_BUFFER, glr.colorVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4), glm::value_ptr(r.color), GL_DYNAMIC_DRAW);
-
-        // draw using sphere VAO but we must bind instance attributes to sphere VAO - easiest: bind instancedVAO's instance attributes to sphere VAO
-        // We'll bind sphere VAO then rebind instance buffers to match locations 1..5
-        glBindVertexArray(glr.sphereMesh.vao);
-
-        // rebind instance matrix to locations 1..4 for sphere VAO
-        glBindBuffer(GL_ARRAY_BUFFER, glr.instanceVBO);
-        GLsizei vec4Size = sizeof(glm::vec4);
-        for (unsigned int i = 0; i < 4; ++i) {
-            GLuint loc = 1 + i;
-            glEnableVertexAttribArray(loc);
-            glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i*vec4Size));
-            glVertexAttribDivisor(loc, 1);
-        }
-        // color
-        glBindBuffer(GL_ARRAY_BUFFER, glr.colorVBO);
-        glEnableVertexAttribArray(5);
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-        glVertexAttribDivisor(5, 1);
-
-        glDrawElementsInstanced(GL_TRIANGLES, glr.sphereMesh.indexCount, GL_UNSIGNED_INT, 0, 1);
-
-        // cleanup: disable instance attributes on sphere vao to avoid interfering with later binds (optional)
-        for (unsigned int i = 0; i < 4; ++i) {
-            GLuint loc = 1 + i;
-            glDisableVertexAttribArray(loc);
-        }
-        glDisableVertexAttribArray(5);
-        glBindVertexArray(0);
-    }
-    // std::cout << "Entities count: " << em.entities.size() << "\n";
-    // for (auto id : em.entities) {
-    //     auto &r = em.renders[id];
-    //     std::cout << "Entity " << id << " VAO=" << r.vao << " indexCount=" << r.indexCount << "\n";
-    // }
-    // restore
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glUseProgram(0);
-}
-
-//
-// -------------------- Game creation helper --------------------
-//
-static void setupGame(EntityManager &em, Mesh &cubeMesh, Mesh &ballMesh, EntityID &outPaddle, EntityID &outBall) {
-    em.reset();
-
-    // Paddle
-    outPaddle = em.createEntity();
-    em.transforms[outPaddle].pos = Constants::PADDLE_START_POS;
-    em.transforms[outPaddle].scale = Constants::PADDLE_SCALE;
-    em.renders[outPaddle].vao = cubeMesh.vao;
-    em.renders[outPaddle].indexCount = cubeMesh.indexCount;
-    em.renders[outPaddle].color = glm::vec4(0.3f, 0.8f, 0.3f, 1.0f);
-    em.paddles[outPaddle] = PaddleComponent{};
-
-    // Bricks - create as normal ECS entities but also push id into brickOrder to maintain stable instance ordering
-    for (int r=0; r<Constants::BRICK_ROWS; ++r) {
-        for (int c=0; c<Constants::BRICK_COLS; ++c) {
-            EntityID b = em.createEntity();
-            float px = Constants::BRICK_OFFSET_X + c * Constants::BRICK_SPACING_X;
-            float py = Constants::BRICK_OFFSET_Y + r * Constants::BRICK_SPACING_Y;
-            em.transforms[b].pos = glm::vec3(px, py, 0.0f);
-            em.transforms[b].scale = Constants::BRICK_SCALE;
-            em.renders[b].vao = cubeMesh.vao;
-            em.renders[b].indexCount = cubeMesh.indexCount;
-            em.renders[b].color = glm::vec4(float(rand())/RAND_MAX, float(rand())/RAND_MAX, float(rand())/RAND_MAX, 1.0f);
-            em.bricks[b] = BrickComponent{};
-            em.brickOrder.push_back(b);
-        }
-    }
-
-    // Ball
-    outBall = em.createEntity();
-    em.transforms[outBall].pos = Constants::BALL_START_POS;
-    em.transforms[outBall].scale = glm::vec3(Constants::BALL_RADIUS);
-    em.renders[outBall].vao = ballMesh.vao;
-    em.renders[outBall].indexCount = ballMesh.indexCount;
-    em.renders[outBall].color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f);
-    em.balls[outBall] = BallComponent{Constants::BALL_START_VEL, Constants::BALL_RADIUS};
-
-    // Single player score/lives entity (could be multiple players easily)
-    EntityID player = em.createEntity();
-    em.scores[player] = ScoreComponent{0};
-    em.lives[player] = LivesComponent{Constants::INITIAL_LIVES};
-}
-
-//
-// -------------------- main() --------------------
-//
-int main() {
-    std::srand((unsigned int)std::time(nullptr));
-
-    if (!glfwInit()) {
-        std::cerr << "GLFW init failed\n"; return -1;
-    }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(Constants::SCR_WIDTH, Constants::SCR_HEIGHT, "ECS Arkanoid 3D", NULL, NULL);
-    if (!window) { std::cerr << "Create window failed\n"; glfwTerminate(); return -1; }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cerr << "GLAD load failed\n"; glfwTerminate(); return -1;
-    }
-    glEnable(GL_DEPTH_TEST);
-    glfwSwapInterval(0);
-    initGLResources();
-
-    // ImGui init
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO(); (void)io;
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330 core");
-
-    EntityManager em;
-    EntityID paddle=0, ball=0;
-    setupGame(em, glr.cubeMesh, glr.sphereMesh, paddle, ball);
-
-    PhysicsSystem physics(em);
-
-    float last = (float)glfwGetTime();
+    glm::mat4 view{1.0f}, projection{1.0f};
     bool running = true;
     bool restartRequested = false;
     bool popupOpened = false;
-    glm::mat4 view = glm::lookAt(Constants::CAMERA_POS, glm::vec3(0.0f, 0.0f, 0.0f), Constants::CAMERA_UP);
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), float(Constants::SCR_WIDTH) / float(Constants::SCR_HEIGHT), 0.1f, 100.0f);
+    Stats stats;
+    float fpsTimer = 0.0f;
+    int frameCount = 0;
 
-    // --- MAIN LOOP ---
-    while (!glfwWindowShouldClose(window)) {
+    // -------------------- Inicializace --------------------
+    bool init(){
+        if(!glfwInit()) return false;
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Modern ECS Arkanoid", nullptr, nullptr);
+        if(!window){ glfwTerminate(); return false; }
+        glfwMakeContextCurrent(window);
+        if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ std::cerr<<"GLAD init failed\n"; return false; }
+        glEnable(GL_DEPTH_TEST);
+        glfwSwapInterval(0); // VSync off for benchmarking
+        // ImGui
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplOpenGL3_Init("#version 330");
 
-        float now = (float)glfwGetTime();
-        float dt = glm::clamp(now - last, 0.0f, 0.033f);
-        last = now;
+        // -------------------- GL Buffers init --------------------
+        instanceVBO.init();
+        colorVBO.init();
+        cameraUBO.init();
 
-        glfwPollEvents();
+        // Compile shader
+        compileShader();
 
-        InputSystem(em, window, dt);
+        // Meshes
+        cubeMesh = makeCubeMesh();
+        sphereMesh = makeSphereMesh(16,16, Config::Ball::RADIUS);
 
-        if (running) {
-            running = physics.update(dt);
-            if (!running) popupOpened = false;
-        }
+        // Camera UBO
+        cameraUBO.bind();
+        cameraUBO.allocate(2 * sizeof(glm::mat4));
+        glBindBufferBase(GL_UNIFORM_BUFFER, CAMERA_UBO_BINDING, cameraUBO.id);
 
-        RenderSystem(em, view, proj);
-        UISystem(em, !running, restartRequested, popupOpened);
+        // Instance buffers
+        size_t maxInstances = Config::Bricks::COLS * Config::Bricks::ROWS + 2;
+        instanceVBO.bind();
+        instanceVBO.allocate(maxInstances * sizeof(glm::mat4));
+        colorVBO.bind();
+        colorVBO.allocate(maxInstances * sizeof(glm::vec4));
 
-        if (restartRequested) {
-            setupGame(em, glr.cubeMesh, glr.sphereMesh, paddle, ball);
-            physics.reset( em.transforms[paddle].pos,
-                          em.transforms[ball].pos,
-                          em.balls[ball].velocity );
-            running = true;
-            restartRequested = false;
-            popupOpened = false;
-            std::cout << "Game Restarted!\n";
-        }
+        setupInstancedAttributesForMesh(cubeMesh.vao);
+        setupInstancedAttributesForMesh(sphereMesh.vao);
 
-        glfwSwapBuffers(window);
-        fpsTimer += dt;
-        frameCount++;
+        // -------------------- ECS --------------------
+        physics = PhysicsSystem(&registry, &running); // předáme pointer na Game::running
 
-        if (fpsTimer >= 1.0f) { // každou sekundu
-            float avgFrameTime = 1000.0f * fpsTimer / frameCount; // ms
-            float fps = frameCount / fpsTimer;
-            std::cout << "[Profiler] Avg frame time: " << avgFrameTime
-                      << " ms, FPS: " << fps << std::endl;
-            fpsTimer = 0.0f;
-            frameCount = 0;
+        // přiřazujeme pointer na registry
+        setupGame();
+
+        // Camera
+        view = glm::lookAt(CAMERA_POS,
+                           CAMERA_POS + CAMERA_FRONT,
+                           CAMERA_UP);
+        projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH/(float)SCR_HEIGHT, 0.1f, 100.0f);
+
+        return true;
+    }
+
+    void run(){
+        float last = (float)glfwGetTime();
+        glfwSwapInterval(0); // VSync off for benchmarking
+        while(!glfwWindowShouldClose(window)){
+            float now = (float)glfwGetTime();
+            float dt = glm::clamp(now - last, 0.0f, 0.033f);
+            last = now;
+
+            glfwPollEvents();
+            input(dt);
+
+            if(running){
+                running = physics.update(dt);
+            }
+
+            render();
+            gui();
+
+            if(restartRequested){
+                setupGame();
+                running = true;
+                restartRequested = false;
+                popupOpened = false;
+            }
+
+            glfwSwapBuffers(window);
+            frameCount++;
+            fpsTimer += dt;
+            if (fpsTimer >= 1.0f) {
+                std::cout << "FPS: " << frameCount << " | " << std::endl;
+                fpsTimer = 0; frameCount = 0;
+            }
+            stats.update(dt);
         }
     }
 
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+private:
+    // ----- GL helper classes -----
+    // convenience wrapper
+    void compileShader(){
+        GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vs, 1, &vertexSrc, NULL);
+        glCompileShader(vs);
+        checkShaderCompile(vs, "vertex");
+        GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fs, 1, &fragmentSrc, NULL);
+        glCompileShader(fs);
+        checkShaderCompile(fs, "fragment");
+        program = glCreateProgram();
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
+        checkProgramLink(program, "program");
+        glDeleteShader(vs); glDeleteShader(fs);
+        // bind UBO index to binding point
+        GLuint blockIndex = glGetUniformBlockIndex(program, "Camera");
+        if(blockIndex != GL_INVALID_INDEX) glUniformBlockBinding(program, blockIndex, CAMERA_UBO_BINDING);
+    }
 
-    cleanupGLResources();
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    void setupInstancedAttributesForMesh(GLuint vao){
+        glBindVertexArray(vao);
+        // bind instanceVBO to attribute locations 1..4 (mat4)
+        instanceVBO.bind();
+        GLsizei vec4Size = sizeof(glm::vec4);
+        for(unsigned int i=0;i<4;++i){
+            GLuint loc = 1 + i;
+            glEnableVertexAttribArray(loc);
+            glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(i * vec4Size));
+            glVertexAttribDivisor(loc, 1);
+        }
+        // color at location 5
+        colorVBO.bind();
+        glEnableVertexAttribArray(5);
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+        glVertexAttribDivisor(5, 1);
+        glBindVertexArray(0);
+    }
+
+    // ----- Game setup -----
+    void setupGame(){
+        // clear registry by creating a fresh one (simple approach)
+        registry = Registry(); // note: rebuilds new Registry
+        // create paddle
+        Entity pid = registry.create();
+        Transform pt; pt.pos = Config::Paddle::START_POS; pt.scale = Config::Paddle::SCALE; pt.model = glm::scale(glm::translate(glm::mat4(1.0f), pt.pos), pt.scale);
+        registry.add<Transform>(pid, pt);
+        registry.add<Render>(pid, Render{glm::vec4(0.3f,0.8f,0.3f,1.0f)});
+        registry.add<Paddle>(pid, Paddle{});
+
+        // bricks
+        for(int r=0; r<Config::Bricks::ROWS; ++r){
+            for(int c=0; c<Config::Bricks::COLS; ++c){
+                Entity b = registry.create();
+                float px = Config::Bricks::START_X + c * Config::Bricks::SCALE.x;
+                float py = Config::Bricks::START_Y - r * (Config::Bricks::SCALE.y + Config::Bricks::SPACING_Y);
+                Transform bt;
+                bt.pos = glm::vec3(px, py, 0.0f);
+                bt.scale = Config::Bricks::SCALE;
+                bt.model = glm::scale(glm::translate(glm::mat4(1.0f), bt.pos), bt.scale);
+                registry.add<Transform>(b, bt);
+                registry.add<Render>(b, Render{ randColor() });
+                registry.add<Brick>(b, Brick{});
+            }
+        }
+
+        // ball
+        Entity bid = registry.create();
+        Transform bt; bt.pos = Config::Ball::START_POS; bt.scale = glm::vec3(Config::Ball::RADIUS); bt.model = glm::scale(glm::translate(glm::mat4(1.0f), bt.pos), bt.scale);
+        registry.add<Transform>(bid, bt);
+        registry.add<Render>(bid, Render{ glm::vec4(1.0f,0.2f,0.2f,1.0f) });
+        registry.add<Ball>(bid, Ball{ Config::Ball::START_VEL, Config::Ball::RADIUS });
+
+        // player score/lives
+        Entity player = registry.create();
+        registry.add<Score>(player, Score{0});
+        registry.add<Lives>(player, Lives{Config::INITIAL_LIVES});
+
+        // reset physics internal caches
+        physics.reset();    // resetuje pozice paddle a míčku
+        running = true;     // nastavíme, že hra běží
+        restartRequested = false;
+    }
+
+    // ----- Input -----
+    void input(float dt){
+        if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
+        // move paddle by mouse X
+        double mx, my; glfwGetCursorPos(window,&mx,&my);
+        int w,h; glfwGetWindowSize(window,&w,&h);
+        float worldX = static_cast<float>(mx) / (float)w * (Config::World::MAX_X - Config::World::MIN_X) + Config::World::MIN_X;
+        // get paddle transform
+        registry.view<Paddle, Transform>([&](Entity e, Paddle&, Transform& t){
+            float smooth = 15.0f;
+            t.pos.x += (worldX - t.pos.x) * smooth * dt;
+            float halfW = t.scale.x * 0.5f;
+            t.pos.x = std::clamp(t.pos.x, Config::World::MIN_X + halfW, Config::World::MAX_X - halfW);
+            t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+        });
+    }
+
+    // ----- Render -----
+    void render(){
+        // update camera UBO
+        cameraUBO.bind();
+        cameraUBO.setSubData(glm::value_ptr(view), sizeof(glm::mat4), 0);
+        cameraUBO.setSubData(glm::value_ptr(projection), sizeof(glm::mat4), sizeof(glm::mat4));
+
+        glClearColor(0.1f,0.1f,0.1f,1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glUseProgram(program);
+
+        // Build instance arrays: bricks first, then paddle, then ball
+        std::vector<glm::mat4> models;
+        std::vector<glm::vec4> colors;
+        models.reserve(Config::Bricks::ROWS * Config::Bricks::COLS + 2);
+        colors.reserve(models.size());
+
+        registry.view<Brick, Transform, Render>([&](Entity e, Brick&, Transform& t, Render& r){
+            models.push_back(t.model);
+            colors.push_back(r.color);
+        });
+        registry.view<Paddle, Transform, Render>([&](Entity e, Paddle&, Transform& t, Render& r){
+            models.push_back(t.model);
+            colors.push_back(r.color);
+        });
+        registry.view<Ball, Transform, Render>([&](Entity e, Ball&, Transform& t, Render& r){
+            models.push_back(t.model);
+            colors.push_back(r.color);
+        });
+
+        GLsizei instanceCount = (GLsizei)models.size();
+        if(instanceCount > 0){
+            // upload instance matrices
+            instanceVBO.bind();
+            // map + memcpy for speed
+            glBindBuffer(GL_ARRAY_BUFFER, instanceVBO.id);
+            void* ptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, instanceCount * sizeof(glm::mat4),
+                                         GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            if(ptr){
+                memcpy(ptr, models.data(), instanceCount * sizeof(glm::mat4));
+                glUnmapBuffer(GL_ARRAY_BUFFER);
+            } else {
+                // fallback
+                instanceVBO.setSubData(models.data(), instanceCount * sizeof(glm::mat4), 0);
+            }
+            // upload colors
+            colorVBO.bind();
+            glBindBuffer(GL_ARRAY_BUFFER, colorVBO.id);
+            void* ptrc = glMapBufferRange(GL_ARRAY_BUFFER, 0, instanceCount * sizeof(glm::vec4),
+                                          GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            if(ptrc){
+                memcpy(ptrc, colors.data(), instanceCount * sizeof(glm::vec4));
+                glUnmapBuffer(GL_ARRAY_BUFFER);
+            } else {
+                colorVBO.setSubData(colors.data(), instanceCount * sizeof(glm::vec4), 0);
+            }
+
+            // Draw cubes (bricks + paddle)
+            glBindVertexArray(cubeMesh.vao);
+            // draw first Nbricks+1 maybe, but cube mesh instanceCount includes bricks+paddle
+            glDrawElementsInstanced(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_INT, 0, instanceCount - 1); // assume last is ball (sphere) -> adjust below
+            glBindVertexArray(0);
+
+            // Ball is drawn with sphere mesh (we put its model/color at end)
+            // We'll draw last instance as sphere (safe because we appended ball last)
+            if(instanceCount >= 1){
+                // sphere uses same instance buffers (attributes already set for sphere VAO)
+                // draw only last 1 instance: we can draw sphere with instanceCount=1, but need base instance offset
+                // Since we uploaded all instance data sequentially, and attributes are per-instance not using baseInstance,
+                // easiest is to upload only sphere data separately OR draw sphere by setting instance pointer offset.
+                // We'll draw sphere by setting vertex attrib pointer offset via binding buffer and glVertexAttribPointer with offset.
+                // Simpler: upload ball's model/color into GPU at position 0 of instance buffer and draw sphere instance 1,
+                // but that would require additional copies. For simplicity: draw sphere as single non-instanced mesh using its model/color:
+                glm::mat4 ballModel = models.back();
+                glm::vec4 ballColor = colors.back();
+
+                // Temporarily set a small shader uniform override: but shader expects per-vertex attributes.
+                // Easiest approach: create a temporary single-instance upload at offset 0 and draw sphere with instanceCount=1.
+                // Save existing first matrix/color
+                glm::mat4 savedMat;
+                glm::vec4 savedColor;
+                if(instanceCount >= 1){
+                    // read first matrix at GPU? too complex - easier path: allocate a small temporary buffer and set vertex attrib pointers for sphere to read from that buffer.
+                    // We'll set a temporary VBO with ball model/color and set divisors = 1 and draw one instance.
+                    GLuint tmpBuf, tmpColorBuf;
+                    glGenBuffers(1,&tmpBuf);
+                    glGenBuffers(1,&tmpColorBuf);
+                    glBindBuffer(GL_ARRAY_BUFFER, tmpBuf);
+                    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4), &ballModel, GL_DYNAMIC_DRAW);
+                    glBindBuffer(GL_ARRAY_BUFFER, tmpColorBuf);
+                    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4), &ballColor, GL_DYNAMIC_DRAW);
+
+                    glBindVertexArray(sphereMesh.vao);
+                    GLsizei vec4Size = sizeof(glm::vec4);
+                    // set attribs 1..4 to tmpBuf
+                    glBindBuffer(GL_ARRAY_BUFFER, tmpBuf);
+                    for(unsigned int i=0;i<4;++i){
+                        GLuint loc = 1 + i;
+                        glEnableVertexAttribArray(loc);
+                        glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,sizeof(glm::mat4),(void*)(i*vec4Size));
+                        glVertexAttribDivisor(loc,1);
+                    }
+                    glBindBuffer(GL_ARRAY_BUFFER, tmpColorBuf);
+                    glEnableVertexAttribArray(5);
+                    glVertexAttribPointer(5,4,GL_FLOAT,GL_FALSE,sizeof(glm::vec4),(void*)0);
+                    glVertexAttribDivisor(5,1);
+
+                    glDrawElementsInstanced(GL_TRIANGLES, sphereMesh.indexCount, GL_UNSIGNED_INT, 0, 1);
+
+                    // cleanup
+                    glBindVertexArray(0);
+                    glDeleteBuffers(1,&tmpBuf);
+                    glDeleteBuffers(1,&tmpColorBuf);
+                }
+            }
+        }
+
+        glUseProgram(0);
+    }
+
+    // ----- GUI -----
+    void gui(){
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::SetNextWindowPos(ImVec2(10,10));
+        ImGui::Begin("Game Info", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+        registry.view<Score>([](Entity e, Score& s){ ImGui::TextColored(ImVec4(1,1,0,1), "Score: %d", s.value); });
+        registry.view<Lives>([](Entity e, Lives& l){ ImGui::TextColored(ImVec4(1,0,0,1), "Lives: %d", l.value); });
+        ImGui::End();
+        stats.drawUI();
+        if(!running){
+            if(!popupOpened){ ImGui::OpenPopup("Game Over!"); popupOpened = true; }
+        }
+
+        if(ImGui::BeginPopupModal("Game Over!", NULL, ImGuiWindowFlags_AlwaysAutoResize)){
+            ImGui::Text("YOU LOST ALL YOUR LIVES!\n");
+            ImGui::Separator();
+            if(ImGui::Button("Restart")){ restartRequested = true; ImGui::CloseCurrentPopup(); }
+            ImGui::SameLine();
+            if(ImGui::Button("Quit")){ glfwSetWindowShouldClose(window, true); ImGui::CloseCurrentPopup(); }
+            ImGui::EndPopup();
+        }
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
+    void shutdown(){
+        if(window){
+            ImGui_ImplOpenGL3_Shutdown();
+            ImGui_ImplGlfw_Shutdown();
+            ImGui::DestroyContext();
+            glfwDestroyWindow(window);
+            glfwTerminate();
+            window = nullptr;
+        }
+        if(program) { glDeleteProgram(program); program = 0; }
+    }
+
+
+};
+
+// -------------------- main --------------------
+int main(){
+    Game game;
+    if(!game.init()){
+        std::cerr<<"Initialization failed\n";
+        return -1;
+    }
+    game.run();
     return 0;
 }
+
