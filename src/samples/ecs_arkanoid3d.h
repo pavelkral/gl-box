@@ -330,7 +330,15 @@ private:
 };
 
 // -------------------- Components --------------------
-struct Transform { glm::vec3 pos{0.0f}; glm::vec3 scale{1.0f}; glm::mat4 model{1.0f}; };
+struct Transform {
+    glm::vec3 pos{0.0f};
+    glm::vec3 scale{1.0f};
+    glm::mat4 cachedMatrix{1.0f};
+
+    void updateMatrix() {
+        cachedMatrix = glm::translate(glm::mat4(1.0f), pos) * glm::scale(glm::mat4(1.0f), scale);
+    }
+};
 struct Render   { glm::vec4 color{1.0f}; };
 struct Ball     { glm::vec3 velocity{0.0f}; float radius{0.5f}; };
 struct Paddle   {};
@@ -473,12 +481,12 @@ public:
             if(!reg) return;
             reg->view<Paddle, Transform>([](Entity, Paddle&, Transform& t){
                 t.pos = Config::Paddle::START_POS;
-                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+                t.updateMatrix();
             });
             reg->view<Ball, Transform>([](Entity, Ball& b, Transform& t){
                 t.pos = Config::Ball::START_POS;
                 b.velocity = Config::Ball::START_VEL;
-                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+                t.updateMatrix();
             });
         }
 
@@ -545,7 +553,7 @@ public:
                 }
 
                 // update model matrix
-                t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+                t.updateMatrix();
             });
 
             return runningPtr ? *runningPtr : true;
@@ -718,7 +726,8 @@ private:
         registry = Registry(); // note: rebuilds new Registry
         // create paddle
         Entity pid = registry.create();
-        Transform pt; pt.pos = Config::Paddle::START_POS; pt.scale = Config::Paddle::SCALE; pt.model = glm::scale(glm::translate(glm::mat4(1.0f), pt.pos), pt.scale);
+        Transform pt; pt.pos = Config::Paddle::START_POS; pt.scale = Config::Paddle::SCALE;
+        pt.updateMatrix();
         registry.add<Transform>(pid, pt);
         registry.add<Render>(pid, Render{glm::vec4(0.3f,0.8f,0.3f,1.0f)});
         registry.add<Paddle>(pid, Paddle{});
@@ -732,7 +741,7 @@ private:
                 Transform bt;
                 bt.pos = glm::vec3(px, py, 0.0f);
                 bt.scale = Config::Bricks::SCALE;
-                bt.model = glm::scale(glm::translate(glm::mat4(1.0f), bt.pos), bt.scale);
+                bt.updateMatrix();
                 registry.add<Transform>(b, bt);
                 registry.add<Render>(b, Render{ randColor() });
                 registry.add<Brick>(b, Brick{});
@@ -741,7 +750,8 @@ private:
 
         // ball
         Entity bid = registry.create();
-        Transform bt; bt.pos = Config::Ball::START_POS; bt.scale = glm::vec3(Config::Ball::RADIUS); bt.model = glm::scale(glm::translate(glm::mat4(1.0f), bt.pos), bt.scale);
+        Transform bt; bt.pos = Config::Ball::START_POS; bt.scale = glm::vec3(Config::Ball::RADIUS);
+        bt.updateMatrix();
         registry.add<Transform>(bid, bt);
         registry.add<Render>(bid, Render{ glm::vec4(1.0f,0.2f,0.2f,1.0f) });
         registry.add<Ball>(bid, Ball{ Config::Ball::START_VEL, Config::Ball::RADIUS });
@@ -770,13 +780,12 @@ private:
             t.pos.x += (worldX - t.pos.x) * smooth * dt;
             float halfW = t.scale.x * 0.5f;
             t.pos.x = std::clamp(t.pos.x, Config::World::MIN_X + halfW, Config::World::MAX_X - halfW);
-            t.model = glm::scale(glm::translate(glm::mat4(1.0f), t.pos), t.scale);
+            t.updateMatrix();
         });
     }
 
-    // ----- Render -----
     void render(){
-        // update camera UBO
+        // --- update camera UBO ---
         cameraUBO.bind();
         cameraUBO.setSubData(glm::value_ptr(view), sizeof(glm::mat4), 0);
         cameraUBO.setSubData(glm::value_ptr(projection), sizeof(glm::mat4), sizeof(glm::mat4));
@@ -786,114 +795,75 @@ private:
 
         glUseProgram(program);
 
-        // Build instance arrays: bricks first, then paddle, then ball
-        std::vector<glm::mat4> models;
-        std::vector<glm::vec4> colors;
-        models.reserve(Config::Bricks::ROWS * Config::Bricks::COLS + 2);
-        colors.reserve(models.size());
+        // --- lineární pole pro všechny instance ---
+        std::vector<glm::mat4> renderModels;
+        std::vector<glm::vec4> renderColors;
+        renderModels.reserve(Config::Bricks::ROWS * Config::Bricks::COLS + 2);
+        renderColors.reserve(renderModels.capacity());
 
-        registry.view<Brick, Transform, Render>([&](Entity e, Brick&, Transform& t, Render& r){
-            models.push_back(t.model);
-            colors.push_back(r.color);
-        });
-        registry.view<Paddle, Transform, Render>([&](Entity e, Paddle&, Transform& t, Render& r){
-            models.push_back(t.model);
-            colors.push_back(r.color);
-        });
-        registry.view<Ball, Transform, Render>([&](Entity e, Ball&, Transform& t, Render& r){
-            models.push_back(t.model);
-            colors.push_back(r.color);
+        // --- Bricks ---
+        registry.view<Brick, Transform, Render>([&](Entity, Brick&, Transform& t, Render& r){
+            renderModels.push_back(t.cachedMatrix);
+            renderColors.push_back(r.color);
         });
 
-        GLsizei instanceCount = (GLsizei)models.size();
-        if(instanceCount > 0){
-            // upload instance matrices
-            instanceVBO.bind();
-            // map + memcpy for speed
-            glBindBuffer(GL_ARRAY_BUFFER, instanceVBO.id);
-            void* ptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, instanceCount * sizeof(glm::mat4),
-                                         GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-            if(ptr){
-                memcpy(ptr, models.data(), instanceCount * sizeof(glm::mat4));
-                glUnmapBuffer(GL_ARRAY_BUFFER);
-            } else {
-                // fallback
-                instanceVBO.setSubData(models.data(), instanceCount * sizeof(glm::mat4), 0);
-            }
-            // upload colors
-            colorVBO.bind();
-            glBindBuffer(GL_ARRAY_BUFFER, colorVBO.id);
-            void* ptrc = glMapBufferRange(GL_ARRAY_BUFFER, 0, instanceCount * sizeof(glm::vec4),
-                                          GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-            if(ptrc){
-                memcpy(ptrc, colors.data(), instanceCount * sizeof(glm::vec4));
-                glUnmapBuffer(GL_ARRAY_BUFFER);
-            } else {
-                colorVBO.setSubData(colors.data(), instanceCount * sizeof(glm::vec4), 0);
-            }
+        // --- Paddle ---
+        registry.view<Paddle, Transform, Render>([&](Entity, Paddle&, Transform& t, Render& r){
+            renderModels.push_back(t.cachedMatrix);
+            renderColors.push_back(r.color);
+        });
 
-            // Draw cubes (bricks + paddle)
-            glBindVertexArray(cubeMesh.vao);
-            // draw first Nbricks+1 maybe, but cube mesh instanceCount includes bricks+paddle
-            glDrawElementsInstanced(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_INT, 0, instanceCount - 1); // assume last is ball (sphere) -> adjust below
-            glBindVertexArray(0);
+        // --- Ball (poslední instance) ---
+        registry.view<Ball, Transform, Render>([&](Entity, Ball&, Transform& t, Render& r){
+            renderModels.push_back(t.cachedMatrix);
+            renderColors.push_back(r.color);
+        });
 
-            // Ball is drawn with sphere mesh (we put its model/color at end)
-            // We'll draw last instance as sphere (safe because we appended ball last)
-            if(instanceCount >= 1){
-                // sphere uses same instance buffers (attributes already set for sphere VAO)
-                // draw only last 1 instance: we can draw sphere with instanceCount=1, but need base instance offset
-                // Since we uploaded all instance data sequentially, and attributes are per-instance not using baseInstance,
-                // easiest is to upload only sphere data separately OR draw sphere by setting instance pointer offset.
-                // We'll draw sphere by setting vertex attrib pointer offset via binding buffer and glVertexAttribPointer with offset.
-                // Simpler: upload ball's model/color into GPU at position 0 of instance buffer and draw sphere instance 1,
-                // but that would require additional copies. For simplicity: draw sphere as single non-instanced mesh using its model/color:
-                glm::mat4 ballModel = models.back();
-                glm::vec4 ballColor = colors.back();
-
-                // Temporarily set a small shader uniform override: but shader expects per-vertex attributes.
-                // Easiest approach: create a temporary single-instance upload at offset 0 and draw sphere with instanceCount=1.
-                // Save existing first matrix/color
-                glm::mat4 savedMat;
-                glm::vec4 savedColor;
-                if(instanceCount >= 1){
-                    // read first matrix at GPU? too complex - easier path: allocate a small temporary buffer and set vertex attrib pointers for sphere to read from that buffer.
-                    // We'll set a temporary VBO with ball model/color and set divisors = 1 and draw one instance.
-                    GLuint tmpBuf, tmpColorBuf;
-                    glGenBuffers(1,&tmpBuf);
-                    glGenBuffers(1,&tmpColorBuf);
-                    glBindBuffer(GL_ARRAY_BUFFER, tmpBuf);
-                    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4), &ballModel, GL_DYNAMIC_DRAW);
-                    glBindBuffer(GL_ARRAY_BUFFER, tmpColorBuf);
-                    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4), &ballColor, GL_DYNAMIC_DRAW);
-
-                    glBindVertexArray(sphereMesh.vao);
-                    GLsizei vec4Size = sizeof(glm::vec4);
-                    // set attribs 1..4 to tmpBuf
-                    glBindBuffer(GL_ARRAY_BUFFER, tmpBuf);
-                    for(unsigned int i=0;i<4;++i){
-                        GLuint loc = 1 + i;
-                        glEnableVertexAttribArray(loc);
-                        glVertexAttribPointer(loc,4,GL_FLOAT,GL_FALSE,sizeof(glm::mat4),(void*)(i*vec4Size));
-                        glVertexAttribDivisor(loc,1);
-                    }
-                    glBindBuffer(GL_ARRAY_BUFFER, tmpColorBuf);
-                    glEnableVertexAttribArray(5);
-                    glVertexAttribPointer(5,4,GL_FLOAT,GL_FALSE,sizeof(glm::vec4),(void*)0);
-                    glVertexAttribDivisor(5,1);
-
-                    glDrawElementsInstanced(GL_TRIANGLES, sphereMesh.indexCount, GL_UNSIGNED_INT, 0, 1);
-
-                    // cleanup
-                    glBindVertexArray(0);
-                    glDeleteBuffers(1,&tmpBuf);
-                    glDeleteBuffers(1,&tmpColorBuf);
-                }
-            }
+        GLsizei instanceCount = (GLsizei)renderModels.size();
+        if(instanceCount == 0){
+            glUseProgram(0);
+            return;
         }
 
+        // --- upload všechny instance jedním memcpy ---
+        instanceVBO.bind();
+        memcpy(instanceVBO.mappedPtr, renderModels.data(), instanceCount * sizeof(glm::mat4));
+
+        colorVBO.bind();
+        memcpy(colorVBO.mappedPtr, renderColors.data(), instanceCount * sizeof(glm::vec4));
+
+        // --- Draw bricks + paddle ---
+        if(instanceCount > 1){ // poslední je míček
+            glBindVertexArray(cubeMesh.vao);
+            glDrawElementsInstanced(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_INT, 0, instanceCount - 1);
+            glBindVertexArray(0);
+        }
+
+        // --- Draw ball (poslední instance) ---
+        glBindVertexArray(sphereMesh.vao);
+
+        // pokud máš OpenGL 4.2+, můžeš použít:
+        // glDrawElementsInstancedBaseInstance(GL_TRIANGLES, sphereMesh.indexCount, GL_UNSIGNED_INT, 0, 1, instanceCount-1);
+
+        // pro OpenGL 3.3 (fallback): přepiš poslední instanci do začátku bufferu
+        {
+            glm::mat4 ballMat = renderModels.back();
+            glm::vec4 ballColor = renderColors.back();
+
+            // přepsání na začátek bufferu
+            instanceVBO.bind();
+            memcpy(instanceVBO.mappedPtr, &ballMat, sizeof(glm::mat4));
+            colorVBO.bind();
+            memcpy(colorVBO.mappedPtr, &ballColor, sizeof(glm::vec4));
+
+            glDrawElementsInstanced(GL_TRIANGLES, sphereMesh.indexCount, GL_UNSIGNED_INT, 0, 1);
+        }
+
+        glBindVertexArray(0);
         glUseProgram(0);
     }
+
+
 
     // ----- GUI -----
     void gui(){
