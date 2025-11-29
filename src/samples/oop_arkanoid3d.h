@@ -39,7 +39,7 @@ constexpr float MAX_Y = 40.0f;
 
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 30;
+constexpr int COLS = 300;
 constexpr float SPACING_X = 3.0f;
 constexpr float SPACING_Y = 2.0f;
 constexpr float START_X = -13.5f;
@@ -48,18 +48,17 @@ constexpr glm::vec3 SCALE = {2.5f, 1.0f, 1.0f};
 }
 
 namespace Paddle {
-constexpr glm::vec3 START_POS = {0.0f, -5.0f, 0.0f};
-constexpr glm::vec3 SCALE = {6.0f, 1.0f, 2.0f};
-constexpr float SPEED = 20.0f;
+constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
+constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
+constexpr float SPEED = 50.0f;
 }
 
 namespace Ball {
-constexpr glm::vec3 START_POS = {0.0f, -3.0f, 0.0f};
-constexpr glm::vec3 START_VEL = {5.0f, 8.0f, 0.0f};
-constexpr float RADIUS = 0.5f;
-// constexpr float SPEEDUP_FACTOR = 1.05f; // zrychlení po kolizi
-constexpr float SPEEDUP_FACTOR = 1.05f; // zrychlení po kolizi
-constexpr float MAX_SPEED = 25.0f;
+constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
+constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
+constexpr float RADIUS = 1.0f;
+constexpr float SPEEDUP_FACTOR = 1.05f; // každá kolize zrychlí o 5%
+constexpr float MAX_SPEED = 30.0f;
 }
 
 constexpr int INITIAL_LIVES = 3;

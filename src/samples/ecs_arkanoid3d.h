@@ -51,18 +51,20 @@ struct Stats {
     }
 };
 // -------------------- Config --------------------
-static constexpr glm::vec3 CAMERA_POS   = {0.0f, 4.0f, 95.0f};
-static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.1f, -1.0f};
-static constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
 
-constexpr unsigned int SCR_WIDTH = 1280;
-constexpr unsigned int SCR_HEIGHT = 720;
 constexpr unsigned int MAX_ENTITIES = 16384; // dostatečně pro 4000 bricks + paddle + balls
 using Entity = uint32_t;
 const Entity INVALID_ENTITY = UINT32_MAX;
 constexpr GLuint CAMERA_UBO_BINDING = 0;
 
+static constexpr glm::vec3 CAMERA_POS   = {0.0f, 4.0f, 95.0f};
+static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.1f, -1.0f};
+static constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
+
 namespace Config {
+constexpr unsigned int SCR_WIDTH = 1280;
+constexpr unsigned int SCR_HEIGHT = 720;
+
 namespace World {
 constexpr float MIN_X = -60.0f;
 constexpr float MAX_X = 60.0f;
@@ -71,14 +73,12 @@ constexpr float MAX_Y = 40.0f;
 }
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 30;
-// šířka hracího pole
+constexpr int COLS = 300;
+
 constexpr float FIELD_WIDTH = Config::World::MAX_X - Config::World::MIN_X;
-// šířka jednoho bricku tak, aby vyplnil šířku
 constexpr float SCALE_X = FIELD_WIDTH / COLS;
-// fixní výška bricku (např. původní 1.0f)
 constexpr float SCALE_Y = 1.0f;
-// start levý horní roh
+
 constexpr float START_X = Config::World::MIN_X + SCALE_X*0.5f;
 constexpr float START_Y = 2.0f; // původní START_Y
 constexpr float SPACING_X = 0.0f;
