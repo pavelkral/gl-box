@@ -785,7 +785,7 @@ int main() {
     if (game.init()) {
         game.run();
     } else {
-        std::cerr << "Failed to initialize game." << std::endl;
+        //std::cerr << "Failed to initialize game." << std::endl;
         return -1;
     }
     return 0;

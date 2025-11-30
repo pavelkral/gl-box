@@ -704,14 +704,14 @@ private:
             }
         }
 
-        // Victory check: pokud nejsou žádné aktivní bricks
+        // Victory
         bool allDestroyed = true;
         for (const auto& brick : bricks) {
             if (brick.alive) { allDestroyed = false; break; }
         }
         if (allDestroyed) {
             gameWon = true;
-            gameOver = true; // zablokujeme další fyziku stejně jako při game over
+            gameOver = true;
             ballLaunched = false;
         }
     }
