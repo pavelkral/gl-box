@@ -1,4 +1,3 @@
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -19,13 +18,16 @@
 #include <array>
 #include <optional>
 
-static constexpr glm::vec3 CAMERA_POS   = {0.0f, 4.0f, 95.0f};
-static constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.1f, -1.0f};
-static constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
-// -------------------- Constants --------------------
 namespace Config {
-constexpr unsigned int SCR_WIDTH  = 1280;
-constexpr unsigned int SCR_HEIGHT = 720;
+
+
+namespace Camera{
+constexpr unsigned int SCREEN_WIDTH  = 1280;
+constexpr unsigned int SCREEN_HEIGHT = 720;
+inline constexpr glm::vec3 CAMERA_POS   = {0.0f, 8.0f, 95.0f};
+inline constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.15f, -1.0f};
+inline constexpr glm::vec3 CAMERA_UP    = {0.0f, 1.0f, 0.0f};
+}
 
 namespace World {
 constexpr float MIN_X = -60.0f;
@@ -36,37 +38,38 @@ constexpr float MAX_Y = 20.0f;
 
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 100;
+constexpr int COLS = 30;
 constexpr float SPACING_X = 3.0f;
 constexpr float SPACING_Y = 2.0f;
 constexpr float START_X = -13.5f;
 constexpr float START_Y = 2.0f;
-constexpr glm::vec3 SCALE = {2.5f, 1.0f, 1.0f};
+inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
 }
 
 namespace Paddle {
-constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
-constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
+inline constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
+inline constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
 constexpr float SPEED = 50.0f;
 }
 
 namespace Ball {
-constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
-constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
+inline constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
+inline constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
 constexpr float RADIUS = 1.0f;
-constexpr float SPEEDUP_FACTOR = 1.05f; // každá kolize zrychlí o 5%
-constexpr float MAX_SPEED = 30.0f;
+constexpr float SPEEDUP_FACTOR = 1.15f; // každá kolize zrychlí o 5%
+constexpr float MAX_SPEED = 40.0f;
 }
-
+namespace Stats {
 constexpr int INITIAL_LIVES = 3;
 constexpr int SCORE_PER_BRICK = 10;
 }
-
+}
+// -------------------- Utilities --------------------
 struct Stats {
-    float deltaTime = 0.0f;      // poslední frame time
-    int frameCount = 0;          // počítadlo frame
-    float fpsTimer = 0.0f;       // akumulátor času
-    float fps = 0.0f;            // FPS za poslední sekundu
+    float deltaTime = 0.0f;
+    int frameCount = 0;
+    float fpsTimer = 0.0f;
+    float fps = 0.0f;
 
     void update(float dt) {
         deltaTime = dt;
@@ -77,7 +80,7 @@ struct Stats {
             fps = (float)frameCount / fpsTimer;
             frameCount = 0;
             fpsTimer = 0.0f;
-            std::cout << "FPS: " << fps << " | " << std::endl;
+            // std::cout << "FPS: " << fps << " | " << std::endl;
         }
     }
 
@@ -88,7 +91,7 @@ struct Stats {
         ImGui::End();
     }
 };
-// -------------------- Utilities --------------------
+
 class Random {
 public:
     static float Float(float min, float max) {
@@ -102,7 +105,7 @@ public:
 };
 
 // -------------------- OpenGL RAII Wrappers --------------------
-// Tyto třídy se postarají o uvolnění paměti GPU automaticky (destruktory)
+// GPU (destruktory)
 
 class Shader {
 public:
@@ -249,7 +252,6 @@ std::unique_ptr<Mesh> createCube() {
 std::unique_ptr<Mesh> createSphere(float radius = 1.0f, int latSeg = 16, int longSeg = 16) {
     std::vector<float> vertices;
     std::vector<unsigned int> indices;
-    // (Zkrácená implementace generování sféry - stejná logika jako v původním kódu)
     for (int y=0;y<=latSeg;y++){
         float theta = (float)y * glm::pi<float>() / latSeg;
         for (int x=0;x<=longSeg;x++){
@@ -261,8 +263,14 @@ std::unique_ptr<Mesh> createSphere(float radius = 1.0f, int latSeg = 16, int lon
     }
     for (int y=0;y<latSeg;y++){
         for (int x=0;x<longSeg;x++){
-            int a = y*(longSeg+1)+x, b = a+longSeg+1;
-            indices.insert(indices.end(), { (unsigned int)a, (unsigned int)b, (unsigned int)a+1, (unsigned int)b, (unsigned int)b+1, (unsigned int)a+1 });
+            int a = y*(longSeg+1)+x;
+            int b = a+longSeg+1;
+            indices.push_back((unsigned int)a);
+            indices.push_back((unsigned int)b);
+            indices.push_back((unsigned int)(a+1));
+            indices.push_back((unsigned int)b);
+            indices.push_back((unsigned int)(b+1));
+            indices.push_back((unsigned int)(a+1));
         }
     }
     return std::make_unique<Mesh>(vertices, indices);
@@ -308,8 +316,9 @@ struct Ball {
 };
 
 // -------------------- Shaders Code --------------------
+// note: přidáno binding = 0 pro UBO
 const char* VS_SRC = R"glsl(
-#version 330 core
+#version 450 core
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec4 aRow0; // Instance Matrix Row 0
 layout(location = 2) in vec4 aRow1;
@@ -317,7 +326,7 @@ layout(location = 3) in vec4 aRow2;
 layout(location = 4) in vec4 aRow3;
 layout(location = 5) in vec4 aColor; // Instance Color
 
-layout(std140) uniform Camera {
+layout(std140, binding = 0) uniform Camera {
     mat4 view;
     mat4 projection;
 };
@@ -337,7 +346,7 @@ void main() {
 )glsl";
 
 const char* FS_SRC = R"glsl(
-#version 330 core
+#version 450 core
 
 in vec3 vPos;
 in vec3 vNormal;
@@ -379,12 +388,15 @@ class Game {
     std::vector<Brick> bricks;
     Paddle paddle;
     Ball ball;
-
+    glm::mat4 view;
+    glm::mat4 proj;
     // State
     bool running = true;
     bool gameOver = false;
+    bool gameWon = false;
+    bool ballLaunched = false; // nový stav: jestli je míček vypuštěn
     int score = 0;
-    int lives = Config::INITIAL_LIVES;
+    int lives = Config::Stats::INITIAL_LIVES;
     float fpsTimer = 0.0f;
     int frameCount = 0;
     Stats stats;
@@ -392,25 +404,41 @@ class Game {
     std::vector<glm::mat4> renderMatrices;
     std::vector<glm::vec4> renderColors;
 
+    // Pro faleš / spin: uložíme poslední x pozici paddle a horizontální rychlost
+    float lastPaddleX = Config::Paddle::START_POS.x;
+    float paddleVelocityX = 0.0f;
+
 public:
     Game() = default;
 
     [[nodiscard]] bool init() {
+
         if (!glfwInit()) return false;
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        window.reset(glfwCreateWindow(Config::SCR_WIDTH, Config::SCR_HEIGHT, "Modern Arkanoid 3D", nullptr, nullptr));
+        window.reset(glfwCreateWindow(Config::Camera::SCREEN_WIDTH, Config::Camera::SCREEN_HEIGHT, "Arkanoid 3D", nullptr, nullptr));
         if (!window) return false;
 
         glfwMakeContextCurrent(window.get());
         glfwSwapInterval(0); // VSync off for benchmarking
 
-        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return false;
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+            std::cout << "Failed to initialize GLAD" << std::endl;
+            return -1;
+        }
 
         glEnable(GL_DEPTH_TEST);
+        std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+        std::cout << "GLSL version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+        std::cout << "Renderer:       " << glGetString(GL_RENDERER) << std::endl;
+        std::cout << "Vendor:         " << glGetString(GL_VENDOR) << std::endl;
 
+        int major, minor;
+        glGetIntegerv(GL_MAJOR_VERSION, &major);
+        glGetIntegerv(GL_MINOR_VERSION, &minor);
+        std::cout << "OpenGL numeric version: " << major << "." << minor << std::endl;
         // Init ImGui
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -424,6 +452,9 @@ public:
     }
 
     void run() {
+        view = glm::lookAt(Config::Camera::CAMERA_POS,Config::Camera::CAMERA_POS + Config::Camera::CAMERA_FRONT,Config::Camera::CAMERA_UP);
+        proj = glm::perspective(glm::radians(45.0f), (float)Config::Camera::SCREEN_WIDTH / Config::Camera::SCREEN_HEIGHT, 0.1f, 100.0f);
+
         float lastTime = (float)glfwGetTime();
         while (!glfwWindowShouldClose(window.get())) {
             float now = (float)glfwGetTime();
@@ -442,9 +473,7 @@ public:
 
             glfwSwapBuffers(window.get());
 
-            // FPS Counter
-
-             stats.update(dt);
+            stats.update(dt);
         }
         cleanup();
     }
@@ -495,8 +524,10 @@ private:
 
     void resetGame() {
         score = 0;
-        lives = Config::INITIAL_LIVES;
+        lives = Config::Stats::INITIAL_LIVES;
         gameOver = false;
+        gameWon = false;
+        ballLaunched = false;
 
         bricks.clear();
 
@@ -530,10 +561,14 @@ private:
         paddle.transform.pos = Config::Paddle::START_POS;
         paddle.transform.scale = Config::Paddle::SCALE;
 
-        ball.transform.pos = Config::Ball::START_POS;
+        ballLaunched = false;
         ball.transform.scale = glm::vec3(Config::Ball::RADIUS, Config::Ball::RADIUS, Config::Ball::RADIUS); // Scale vizual
         ball.radius = Config::Ball::RADIUS;
         ball.velocity = Config::Ball::START_VEL;
+
+        // ensure paddle tracking variables reset
+        lastPaddleX = paddle.transform.pos.x;
+        paddleVelocityX = 0.0f;
     }
 
     void processInput(float dt) {
@@ -549,12 +584,29 @@ private:
         float normX = (float)xpos / width; // 0..1
         float worldX = Config::World::MIN_X + normX * (Config::World::MAX_X - Config::World::MIN_X);
 
-        // Smooth lerp
+        // Smooth lerp with paddle velocity calculation for spin
+        float prevPaddleX = paddle.transform.pos.x;
         paddle.transform.pos.x += (worldX - paddle.transform.pos.x) * 15.0f * dt;
 
         // Clamp
         float halfW = paddle.transform.scale.x * 0.5f;
         paddle.transform.pos.x = std::clamp(paddle.transform.pos.x, Config::World::MIN_X + halfW, Config::World::MAX_X - halfW);
+
+        // compute paddle horizontal velocity (used for "faleš")
+        // guard dt > 0
+        if (dt > 0.0f) {
+            paddleVelocityX = (paddle.transform.pos.x - prevPaddleX) / dt;
+        } else {
+            paddleVelocityX = 0.0f;
+        }
+        lastPaddleX = paddle.transform.pos.x;
+
+        // Space to launch ball
+        if (glfwGetKey(window.get(), GLFW_KEY_SPACE) == GLFW_PRESS) {
+            if (!ballLaunched && !gameOver && !gameWon) {
+                ballLaunched = true;
+            }
+        }
     }
 
     bool checkAABB(const glm::vec3& bPos, const glm::vec3& bScale, const glm::vec3& spherePos, float r) {
@@ -565,65 +617,106 @@ private:
                 spherePos.y + r > bPos.y - halfH && spherePos.y - r < bPos.y + halfH);
     }
 
+    glm::vec3 reflectVector(const glm::vec3& v, const glm::vec3& normal) {
+        return v - 2.0f * glm::dot(v, normal) * normal;
+    }
+
     void updatePhysics(float dt) {
+        // pokud míček ještě nebyl vypuštěn, držíme ho nad středem paddle
+        if (!ballLaunched) {
+            ball.transform.pos.x = paddle.transform.pos.x;
+            ball.transform.pos.y = paddle.transform.pos.y + paddle.transform.scale.y * 0.5f + ball.radius + 0.2f;
+            return;
+        }
+
         ball.transform.pos += ball.velocity * dt;
 
         // Walls
-        if (ball.transform.pos.x <= Config::World::MIN_X || ball.transform.pos.x >= Config::World::MAX_X)
+        if (ball.transform.pos.x <= Config::World::MIN_X) {
+            ball.transform.pos.x = Config::World::MIN_X;
             ball.velocity.x *= -1.0f;
-        if (ball.transform.pos.y >= Config::World::MAX_Y)
+        } else if (ball.transform.pos.x >= Config::World::MAX_X) {
+            ball.transform.pos.x = Config::World::MAX_X;
+            ball.velocity.x *= -1.0f;
+        }
+        if (ball.transform.pos.y >= Config::World::MAX_Y) {
+            ball.transform.pos.y = Config::World::MAX_Y;
             ball.velocity.y *= -1.0f;
+        }
 
         // Paddle Collision
         if (checkAABB(paddle.transform.pos, paddle.transform.scale, ball.transform.pos, ball.radius)) {
-            // Calculate deflection
-            float diff = ball.transform.pos.x - paddle.transform.pos.x;
-            float percent = diff / (paddle.transform.scale.x * 0.5f);
-            ball.velocity.x = percent * 10.0f;
-            ball.velocity.y = std::abs(ball.velocity.y); // Vzdy nahoru
+            // Normála je nahoru pro paddle
+            glm::vec3 normal(0.0f, 1.0f, 0.0f);
+
+            // Use physical reflection
+            ball.velocity = reflectVector(ball.velocity, normal);
+
+            // Add "faleš" (spin) based on paddle horizontal velocity
+            // menší koeficient, aby to nebylo extrémní
+            ball.velocity.x += paddleVelocityX * 0.12f;
+
+            // posuneme míček ven, aby nebyl uvnitř kolize
             ball.transform.pos.y = paddle.transform.pos.y + paddle.transform.scale.y * 0.5f + ball.radius + 0.1f;
 
-            // --- Zrychlení míče ---
+            // zrychlení
             ball.velocity *= Config::Ball::SPEEDUP_FACTOR;
             if (glm::length(ball.velocity) > Config::Ball::MAX_SPEED)
                 ball.velocity = glm::normalize(ball.velocity) * Config::Ball::MAX_SPEED;
         }
 
-        // Brick Collision (Iterate backward to allow swap/pop if we wanted to remove)
+        // Brick Collision (Iterate through bricks)
         for (auto& brick : bricks) {
             if (!brick.alive) continue;
             if (checkAABB(brick.transform.pos, brick.transform.scale, ball.transform.pos, ball.radius)) {
                 brick.alive = false;
-                score += Config::SCORE_PER_BRICK;
+                score += Config::Stats::SCORE_PER_BRICK;
 
+                // determine approximate collision normal by comparing delta
                 glm::vec3 delta = ball.transform.pos - brick.transform.pos;
-                if (abs(delta.x) > abs(delta.y))
-                    ball.velocity.x *= -1.0f;
-                else
-                    ball.velocity.y *= -1.0f;
 
-                // ECS-style speedup
+                glm::vec3 normal;
+                if (std::abs(delta.x) > std::abs(delta.y)) {
+                    normal = glm::vec3(delta.x > 0 ? 1.0f : -1.0f, 0.0f, 0.0f);
+                } else {
+                    normal = glm::vec3(0.0f, delta.y > 0 ? 1.0f : -1.0f, 0.0f);
+                }
+
+                ball.velocity = reflectVector(ball.velocity, normal);
+
+                // speedup
                 ball.velocity *= Config::Ball::SPEEDUP_FACTOR;
                 float len = glm::length(ball.velocity);
                 if (len > Config::Ball::MAX_SPEED)
                     ball.velocity = glm::normalize(ball.velocity) * Config::Ball::MAX_SPEED;
+                break;  //stop
             }
         }
 
         // Death
         if (ball.transform.pos.y < Config::World::MIN_Y) {
             lives--;
-            if (lives <= 0) gameOver = true;
-            else resetBallPaddle();
+            if (lives <= 0) {
+                gameOver = true;
+                ballLaunched = false;
+            } else {
+                resetBallPaddle();
+            }
+        }
+
+        // Victory check: pokud nejsou žádné aktivní bricks
+        bool allDestroyed = true;
+        for (const auto& brick : bricks) {
+            if (brick.alive) { allDestroyed = false; break; }
+        }
+        if (allDestroyed) {
+            gameWon = true;
+            gameOver = true; // zablokujeme další fyziku stejně jako při game over
+            ballLaunched = false;
         }
     }
 
     void render() {
-        // Update Camera
-        glm::mat4 view = glm::lookAt(CAMERA_POS,
-                           CAMERA_POS + CAMERA_FRONT,
-                           CAMERA_UP);
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)Config::SCR_WIDTH / Config::SCR_HEIGHT, 0.1f, 100.0f);
 
         uboCamera->bind();
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
@@ -647,8 +740,7 @@ private:
             }
         }
 
-        // 2. Add Paddle to the same draw call list? No, paddle moves, matrices change.
-        // Let's draw Bricks first.
+        // 2. Draw Bricks
         if (!renderMatrices.empty()) {
             vboInstance->setSubData(renderMatrices);
             vboColor->setSubData(renderColors);
@@ -657,7 +749,8 @@ private:
 
         // --- Render Paddle & Ball ---
         // Reuse vectors for dynamic objects
-        renderMatrices.clear(); renderColors.clear();
+        renderMatrices.clear();
+        renderColors.clear();
 
         renderMatrices.push_back(paddle.transform.getMatrix());
         renderColors.push_back(paddle.color);
@@ -686,7 +779,7 @@ private:
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "Lives: %d", lives);
         ImGui::End();
 
-        if (gameOver) {
+        if (gameOver && !gameWon) {
             ImGui::OpenPopup("GameOver");
         }
 
@@ -703,7 +796,29 @@ private:
             }
             ImGui::EndPopup();
         }
-       // stats.drawUI();
+
+        // Game Won popup
+        if (gameWon) {
+            ImGui::OpenPopup("GameWon");
+        }
+
+        if (ImGui::BeginPopupModal("GameWon", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("CONGRATULATIONS!");
+            ImGui::Text("You destroyed all bricks!");
+            ImGui::Text("Final Score: %d", score);
+            if (ImGui::Button("Restart", ImVec2(120, 0))) {
+                resetGame();
+                gameWon = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Exit", ImVec2(120, 0))) {
+                glfwSetWindowShouldClose(window.get(), true);
+            }
+            ImGui::EndPopup();
+        }
+
+        stats.drawUI();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
