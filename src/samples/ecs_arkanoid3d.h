@@ -15,54 +15,86 @@
 #include <string>
 #include <random>
 #include <memory>
-#include <unordered_map>
-#include <typeindex>
+#include <array>
 #include <optional>
-#include <functional>
+#include <unordered_map>
+#include <set>
 
-// ==================== CONFIGURATION ====================
+// -------------------- Config (Zachováno) --------------------
 namespace Config {
-constexpr unsigned int SCREEN_WIDTH = 1280;
+namespace Camera{
+constexpr unsigned int SCREEN_WIDTH  = 1280;
 constexpr unsigned int SCREEN_HEIGHT = 720;
-
+inline constexpr glm::vec3 CAMERA_POS    = {0.0f, 8.0f, 95.0f};
+inline constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.15f, -1.0f};
+inline constexpr glm::vec3 CAMERA_UP     = {0.0f, 1.0f, 0.0f};
+}
 namespace World {
 constexpr float MIN_X = -60.0f;
 constexpr float MAX_X = 60.0f;
 constexpr float MIN_Y = -40.0f;
 constexpr float MAX_Y = 20.0f;
 }
-
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 100;
+constexpr int COLS = 30;
+constexpr float SPACING_X = 3.0f;
+constexpr float SPACING_Y = 2.0f;
+constexpr float START_X = -13.5f;
 constexpr float START_Y = 2.0f;
-constexpr glm::vec3 SCALE = { 2.5f, 1.0f, 1.0f }; // Width se dopočítá dynamicky, ale scale Y/Z fixní
+inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
 }
-
 namespace Paddle {
-constexpr glm::vec3 START_POS = { 0.0f, -30.0f, 0.0f };
-constexpr glm::vec3 SCALE = { 10.0f, 2.0f, 2.0f };
+inline constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
+inline constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
 }
-
 namespace Ball {
-constexpr glm::vec3 START_POS = { 0.0f, -25.0f, 0.0f };
-constexpr glm::vec3 START_VEL = { 10.0f, 16.0f, 0.0f };
+inline constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
+inline constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
 constexpr float RADIUS = 1.0f;
-constexpr float SPEEDUP_FACTOR = 1.05f;
+constexpr float SPEEDUP_FACTOR = 1.15f;
 constexpr float MAX_SPEED = 40.0f;
 }
-
+namespace Stats {
 constexpr int INITIAL_LIVES = 3;
 constexpr int SCORE_PER_BRICK = 10;
 }
+}
 
-// ==================== UTILITIES & WRAPPERS ====================
-// (Zachováno z původního kódu - low level OpenGL)
+// -------------------- Utilities (Zachováno) --------------------
+struct Stats {
+    float deltaTime = 0.0f;
+    int frameCount = 0;
+    float fpsTimer = 0.0f;
+    float fps = 0.0f;
+
+    void update(float dt) {
+        deltaTime = dt;
+        frameCount++;
+        fpsTimer += dt;
+        if(fpsTimer >= 1.0f){
+            fps = (float)frameCount / fpsTimer;
+            frameCount = 0;
+            fpsTimer = 0.0f;
+        }
+    }
+    void drawUI(){
+        ImGui::SetNextWindowPos(ImVec2(1280 - 10, 10), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        ImGui::Begin("Stats", nullptr,
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove);
+
+        // Zvětšení textu (volitelné)
+        ImGui::SetWindowFontScale(1.5f);
+        ImGui::Text("FPS: %.1f", fps);
+        ImGui::Text("Frame Time: %.2f ms", deltaTime * 1000.0f);
+        ImGui::End();
+    }
+};
 
 class Random {
 public:
     static float Float(float min, float max) {
-        static std::mt19937 mt{ std::random_device{}() };
+        static std::mt19937 mt{std::random_device{}()};
         std::uniform_real_distribution<float> dist(min, max);
         return dist(mt);
     }
@@ -71,6 +103,7 @@ public:
     }
 };
 
+// -------------------- OpenGL Wrappers (Zachováno) --------------------
 class Shader {
 public:
     GLuint ID = 0;
@@ -81,24 +114,39 @@ public:
         glAttachShader(ID, vs);
         glAttachShader(ID, fs);
         glLinkProgram(ID);
-        glDeleteShader(vs); glDeleteShader(fs);
+        checkLinkErrors(ID);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
     }
     ~Shader() { if (ID) glDeleteProgram(ID); }
+    Shader(const Shader&) = delete;
     void use() const { glUseProgram(ID); }
 private:
     GLuint compileShader(GLenum type, const char* src) {
         GLuint shader = glCreateShader(type);
         glShaderSource(shader, 1, &src, NULL);
         glCompileShader(shader);
+        checkCompileErrors(shader, type == GL_VERTEX_SHADER ? "VERTEX" : "FRAGMENT");
         return shader;
+    }
+    void checkCompileErrors(GLuint shader, std::string type) {
+        GLint success; char infoLog[1024];
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+        if (!success) { glGetShaderInfoLog(shader, 1024, NULL, infoLog); std::cerr << "SHADER::" << type << "\n" << infoLog << std::endl; }
+    }
+    void checkLinkErrors(GLuint program) {
+        GLint success; char infoLog[1024];
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+        if (!success) { glGetProgramInfoLog(program, 1024, NULL, infoLog); std::cerr << "LINK::ERROR\n" << infoLog << std::endl; }
     }
 };
 
 class Buffer {
 public:
-    GLuint ID = 0; GLenum type;
+    GLuint ID = 0;
+    GLenum type;
     Buffer(GLenum type) : type(type) { glGenBuffers(1, &ID); }
-    ~Buffer() { if (ID) glDeleteBuffers(1, &ID); }
+    ~Buffer() { if(ID) glDeleteBuffers(1, &ID); }
     void bind() const { glBindBuffer(type, ID); }
     void unbind() const { glBindBuffer(type, 0); }
     template<typename T> void setData(const std::vector<T>& data, GLenum usage = GL_STATIC_DRAW) {
@@ -110,20 +158,24 @@ public:
     template<typename T> void setSubData(const std::vector<T>& data, size_t offset = 0) {
         bind(); glBufferSubData(type, offset, data.size() * sizeof(T), data.data());
     }
+    template<typename T> void setSubDataSingle(const T& data, size_t offset = 0) {
+        bind(); glBufferSubData(type, offset, sizeof(T), &data);
+    }
 };
 
 class VertexArray {
 public:
     GLuint ID = 0;
     VertexArray() { glGenVertexArrays(1, &ID); }
-    ~VertexArray() { if (ID) glDeleteVertexArrays(1, &ID); }
+    ~VertexArray() { if(ID) glDeleteVertexArrays(1, &ID); }
     void bind() const { glBindVertexArray(ID); }
     void unbind() const { glBindVertexArray(0); }
 };
 
 struct Mesh {
     std::unique_ptr<VertexArray> vao;
-    std::unique_ptr<Buffer> vbo, ebo;
+    std::unique_ptr<Buffer> vbo;
+    std::unique_ptr<Buffer> ebo;
     GLsizei indexCount = 0;
 
     Mesh(const std::vector<float>& vertices, const std::vector<unsigned int>& indices) {
@@ -138,363 +190,477 @@ struct Mesh {
         vao->unbind();
         indexCount = (GLsizei)indices.size();
     }
-};
-
-// ==================== ECS CORE ====================
-
-// 1. Component Interface (Polymorfní base, aby šly ukládat do mapy)
-struct Component {
-    virtual ~Component() = default;
-};
-
-// 2. Entity
-class Entity {
-public:
-    using ID = size_t;
-private:
-    ID id;
-    static inline ID idCounter = 0;
-    // Mapa typ -> pointer na komponentu. Jednoduché a efektivní pro tuto velikost.
-    std::unordered_map<std::type_index, std::unique_ptr<Component>> components;
-    bool active = true;
-
-public:
-    Entity() : id(idCounter++) {}
-
-    ID getID() const { return id; }
-    bool isActive() const { return active; }
-    void destroy() { active = false; }
-
-    template <typename T, typename... Args>
-    T& addComponent(Args&&... args) {
-        components[typeid(T)] = std::make_unique<T>(std::forward<Args>(args)...);
-        return *static_cast<T*>(components[typeid(T)].get());
-    }
-
-    template <typename T>
-    T& getComponent() {
-        return *static_cast<T*>(components.at(typeid(T)).get());
-    }
-
-    template <typename T>
-    bool hasComponent() const {
-        return components.find(typeid(T)) != components.end();
+    void drawInstanced(GLsizei count) const {
+        vao->bind();
+        glDrawElementsInstanced(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0, count);
+        vao->unbind();
     }
 };
 
-// ==================== COMPONENTS ====================
+// Mesh Helpers
+namespace MeshFactory {
+std::unique_ptr<Mesh> createCube() {
+    std::vector<float> vertices = {
+        -0.5f,-0.5f,-0.5f, 0.5f,-0.5f,-0.5f, 0.5f, 0.5f,-0.5f, -0.5f, 0.5f,-0.5f,
+        -0.5f,-0.5f, 0.5f, 0.5f,-0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f
+    };
+    std::vector<unsigned int> indices = {
+        0,1,2, 2,3,0, 4,5,6, 6,7,4, 0,1,5, 5,4,0, 2,3,7, 7,6,2, 0,3,7, 7,4,0, 1,2,6, 6,5,1
+    };
+    return std::make_unique<Mesh>(vertices, indices);
+}
+std::unique_ptr<Mesh> createSphere(float radius, int latSeg = 16, int longSeg = 16) {
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    for (int y=0;y<=latSeg;y++){
+        float theta = (float)y * glm::pi<float>() / latSeg;
+        for (int x=0;x<=longSeg;x++){
+            float phi = (float)x * 2.0f * glm::pi<float>() / longSeg;
+            vertices.push_back(radius * cos(phi) * sin(theta));
+            vertices.push_back(radius * cos(theta));
+            vertices.push_back(radius * sin(phi) * sin(theta));
+        }
+    }
+    for (int y=0;y<latSeg;y++){
+        for (int x=0;x<longSeg;x++){
+            int a = y*(longSeg+1)+x;
+            int b = a+longSeg+1;
+            indices.push_back(a); indices.push_back(b); indices.push_back(a+1);
+            indices.push_back(b); indices.push_back(b+1); indices.push_back(a+1);
+        }
+    }
+    return std::make_unique<Mesh>(vertices, indices);
+}
+}
 
-struct CTransform : public Component {
-    glm::vec3 pos{0.0f};
+// -------------------- Shaders Code (Zachováno) --------------------
+const char* VS_SRC = R"glsl(
+#version 450 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec4 aRow0;
+layout(location = 2) in vec4 aRow1;
+layout(location = 3) in vec4 aRow2;
+layout(location = 4) in vec4 aRow3;
+layout(location = 5) in vec4 aColor;
+layout(std140, binding = 0) uniform Camera { mat4 view; mat4 projection; };
+out vec3 vPos;
+out vec3 vNormal;
+out vec4 vColor;
+void main() {
+    mat4 model = mat4(aRow0, aRow1, aRow2, aRow3);
+    vec4 worldPos = model * vec4(aPos, 1.0);
+    vPos = worldPos.xyz;
+    vNormal = normalize(mat3(model) * aPos);
+    vColor = aColor;
+    gl_Position = projection * view * worldPos;
+}
+)glsl";
+
+const char* FS_SRC = R"glsl(
+#version 450 core
+in vec3 vPos;
+in vec3 vNormal;
+in vec4 vColor;
+out vec4 FragColor;
+void main() {
+    vec3 N = normalize(vNormal);
+    vec3 L = normalize(vec3(10.0, 20.0, 10.0) - vPos);
+    vec3 V = normalize(vec3(0.0, 15.0, 35.0) - vPos);
+    float diff = max(dot(N, L), 0.0);
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 64.0);
+    vec3 base = vColor.rgb * 0.6 + vColor.rgb * 0.4 * diff;
+    vec3 color = base + vec3(1.0) * 0.6 * spec;
+    FragColor = vec4(color, vColor.a);
+}
+)glsl";
+
+// -------------------- ECS: Components --------------------
+// Komponenty jsou jen data, žádné metody
+
+using Entity = std::uint32_t;
+const Entity NULL_ENTITY = 0;
+
+// Identifikace typu entity
+enum class TagType { None, Paddle, Ball, Brick };
+
+struct TagComponent {
+    TagType type = TagType::None;
+};
+
+struct TransformComponent {
+    glm::vec3 position{0.0f};
     glm::vec3 scale{1.0f};
+
+    // Helper pro získání matice (použito render systémem)
     glm::mat4 getMatrix() const {
         glm::mat4 m(1.0f);
-        m = glm::translate(m, pos);
+        m = glm::translate(m, position);
         m = glm::scale(m, scale);
         return m;
     }
 };
 
-struct CRigidBody : public Component {
+struct RigidbodyComponent {
     glm::vec3 velocity{0.0f};
-    bool isStatic = false;
+    bool isStatic = false; // Pokud true, fyzika s tím nehýbe (bricks)
 };
 
-struct CCollider : public Component {
-    enum Type { BOX, SPHERE } type;
-    glm::vec3 boxSize{1.0f}; // Pro BOX (odpovídá scale)
-    float radius{1.0f};      // Pro SPHERE
-    bool isTrigger = false;  // Pokud true, neřeší fyzickou odezvu, jen event
+struct ColliderComponent {
+    enum Type { Box, Sphere } type;
+    float radius = 1.0f; // Jen pro sféru
+    // Box bere rozměry z Transform.scale
 };
 
-struct CRenderable : public Component {
-    Mesh* meshPtr = nullptr; // Odkaz na mesh v ResourceManageru (ne vlastnictví)
+struct RenderComponent {
+    Mesh* mesh = nullptr; // Raw pointer (resources vlastní Game třída)
     glm::vec4 color{1.0f};
+    bool visible = true;
 };
 
-struct CTag : public Component {
-    std::string tag;
-    CTag(std::string t) : tag(std::move(t)) {}
+struct PlayerControlComponent {
+    float lastX = 0.0f;     // Pro výpočet "faleše"
+    float velocityX = 0.0f; // Vypočtená rychlost pádla
 };
 
-// ==================== RESOURCE MANAGER ====================
-// Drží shadery a meshe, aby je entity nevlastnily
-class ResourceManager {
+struct GameStateComponent {
+    // Komponenta pro Ball entity, říká jestli je ve hře
+    bool launched = false;
+};
+
+// -------------------- ECS: Registry --------------------
+// Jednoduchý správce entit a komponent (Concrete ECS implementation)
+
+class Registry {
 public:
-    std::unique_ptr<Shader> shader;
-    std::unique_ptr<Mesh> cubeMesh;
-    std::unique_ptr<Mesh> sphereMesh;
+    std::vector<Entity> entities;
+    std::uint32_t nextId = 1;
 
-    void init() {
-        // Shaders (Stejné jako v původním kódu)
-        const char* VS = R"glsl(
-            #version 330 core
-            layout(location = 0) in vec3 aPos;
-            layout(location = 1) in vec4 aRow0; layout(location = 2) in vec4 aRow1;
-            layout(location = 3) in vec4 aRow2; layout(location = 4) in vec4 aRow3;
-            layout(location = 5) in vec4 aColor;
-            layout(std140) uniform Camera { mat4 view; mat4 projection; };
-            out vec3 vPos; out vec3 vNormal; out vec4 vColor;
-            void main() {
-                mat4 model = mat4(aRow0, aRow1, aRow2, aRow3);
-                vec4 worldPos = model * vec4(aPos, 1.0);
-                vPos = worldPos.xyz;
-                vNormal = normalize(mat3(model) * aPos);
-                vColor = aColor;
-                gl_Position = projection * view * worldPos;
-            }
-        )glsl";
-        const char* FS = R"glsl(
-            #version 330 core
-            in vec3 vPos; in vec3 vNormal; in vec4 vColor;
-            out vec4 FragColor;
-            void main() {
-                vec3 N = normalize(vNormal);
-                vec3 L = normalize(vec3(10.0, 20.0, 10.0) - vPos);
-                float diff = max(dot(N, L), 0.2); // Ambient 0.2
-                FragColor = vec4(vColor.rgb * diff, vColor.a);
-            }
-        )glsl";
-        shader = std::make_unique<Shader>(VS, FS);
+    // Komponenty uložené jako pole indexované [Entity ID]
+    // Používáme mapu pro jednoduchost v tomto příkladu, v produkčním ECS by to byl sparse-set
+    std::unordered_map<Entity, TagComponent> tags;
+    std::unordered_map<Entity, TransformComponent> transforms;
+    std::unordered_map<Entity, RigidbodyComponent> rigidbodies;
+    std::unordered_map<Entity, ColliderComponent> colliders;
+    std::unordered_map<Entity, RenderComponent> renderables;
+    std::unordered_map<Entity, PlayerControlComponent> players;
+    std::unordered_map<Entity, GameStateComponent> gameStates; // Např. na míčku
 
-        // Meshes
-        cubeMesh = createCube();
-        sphereMesh = createSphere();
+    // Globální stav hry (Resource)
+    struct {
+        int score = 0;
+        int lives = Config::Stats::INITIAL_LIVES;
+        bool gameOver = false;
+        bool gameWon = false;
+    } globalState;
+
+    Entity createEntity() {
+        Entity id = nextId++;
+        entities.push_back(id);
+        return id;
     }
 
-private:
-    std::unique_ptr<Mesh> createCube() {
-        std::vector<float> v = {
-            -0.5f,-0.5f,-0.5f, 0.5f,-0.5f,-0.5f, 0.5f,0.5f,-0.5f, -0.5f,0.5f,-0.5f,
-            -0.5f,-0.5f,0.5f, 0.5f,-0.5f,0.5f, 0.5f,0.5f,0.5f, -0.5f,0.5f,0.5f
-        };
-        std::vector<unsigned int> i = {
-            0,1,2, 2,3,0, 4,5,6, 6,7,4, 0,1,5, 5,4,0, 2,3,7, 7,6,2, 0,3,7, 7,4,0, 1,2,6, 6,5,1
-        };
-        return std::make_unique<Mesh>(v, i);
-    }
-    std::unique_ptr<Mesh> createSphere() {
-        // Zjednodušená sféra
-        std::vector<float> v; std::vector<unsigned int> i;
-        int lat = 12, lon = 12; float r = 1.0f;
-        for(int y=0; y<=lat; y++) {
-            float theta = y * 3.14159f / lat;
-            for(int x=0; x<=lon; x++) {
-                float phi = x * 2 * 3.14159f / lon;
-                v.push_back(r*sin(theta)*cos(phi)); v.push_back(r*cos(theta)); v.push_back(r*sin(theta)*sin(phi));
-            }
-        }
-        for(int y=0; y<lat; y++) {
-            for(int x=0; x<lon; x++) {
-                int a = y*(lon+1)+x, b = a+lon+1;
-                i.insert(i.end(), { (unsigned int)a, (unsigned int)b, (unsigned int)a+1, (unsigned int)b, (unsigned int)b+1, (unsigned int)a+1 });
-            }
-        }
-        return std::make_unique<Mesh>(v, i);
-    }
-};
-
-// ==================== SCENE ====================
-class Scene {
-public:
-    std::vector<std::shared_ptr<Entity>> entities;
-    std::vector<std::shared_ptr<Entity>> entitiesToAdd; // Double buffer pro bezpečné přidávání
-
-    std::shared_ptr<Entity> createEntity() {
-        auto e = std::make_shared<Entity>();
-        entitiesToAdd.push_back(e);
-        return e;
-    }
-
-    void updateLists() {
-        // Add new
-        if(!entitiesToAdd.empty()){
-            entities.insert(entities.end(), entitiesToAdd.begin(), entitiesToAdd.end());
-            entitiesToAdd.clear();
-        }
-        // Remove dead (Erase-Remove idiom)
-        entities.erase(std::remove_if(entities.begin(), entities.end(),
-                                      [](const auto& e) { return !e->isActive(); }), entities.end());
+    void destroyEntity(Entity e) {
+        entities.erase(std::remove(entities.begin(), entities.end(), e), entities.end());
+        tags.erase(e);
+        transforms.erase(e);
+        rigidbodies.erase(e);
+        colliders.erase(e);
+        renderables.erase(e);
+        players.erase(e);
+        gameStates.erase(e);
     }
 
     void clear() {
         entities.clear();
-        entitiesToAdd.clear();
+        tags.clear();
+        transforms.clear();
+        rigidbodies.clear();
+        colliders.clear();
+        renderables.clear();
+        players.clear();
+        gameStates.clear();
+        nextId = 1;
     }
 
-    // Helper: Vrátí view na entity, které mají všechny zadané komponenty
-    template<typename... Comps>
-    auto view() {
-        std::vector<Entity*> result;
-        for(auto& e : entities) {
-            if ((e->hasComponent<Comps>() && ...)) {
-                result.push_back(e.get());
-            }
-        }
-        return result;
-    }
+    // Utility helpers
+    template<typename T> T& addComponent(Entity e, T component);
+    template<typename T> T* getComponent(Entity e);
+    template<typename T> bool hasComponent(Entity e);
 };
 
-// ==================== SYSTEMS ====================
+// Template specializace pro zjednodušení syntaxe
+template<> TagComponent& Registry::addComponent(Entity e, TagComponent c) { return tags[e] = c; }
+template<> TransformComponent& Registry::addComponent(Entity e, TransformComponent c) { return transforms[e] = c; }
+template<> RigidbodyComponent& Registry::addComponent(Entity e, RigidbodyComponent c) { return rigidbodies[e] = c; }
+template<> ColliderComponent& Registry::addComponent(Entity e, ColliderComponent c) { return colliders[e] = c; }
+template<> RenderComponent& Registry::addComponent(Entity e, RenderComponent c) { return renderables[e] = c; }
+template<> PlayerControlComponent& Registry::addComponent(Entity e, PlayerControlComponent c) { return players[e] = c; }
+template<> GameStateComponent& Registry::addComponent(Entity e, GameStateComponent c) { return gameStates[e] = c; }
 
-// --- INPUT SYSTEM ---
+template<> TagComponent* Registry::getComponent(Entity e) { return tags.count(e) ? &tags[e] : nullptr; }
+template<> TransformComponent* Registry::getComponent(Entity e) { return transforms.count(e) ? &transforms[e] : nullptr; }
+template<> RigidbodyComponent* Registry::getComponent(Entity e) { return rigidbodies.count(e) ? &rigidbodies[e] : nullptr; }
+template<> ColliderComponent* Registry::getComponent(Entity e) { return colliders.count(e) ? &colliders[e] : nullptr; }
+template<> RenderComponent* Registry::getComponent(Entity e) { return renderables.count(e) ? &renderables[e] : nullptr; }
+template<> PlayerControlComponent* Registry::getComponent(Entity e) { return players.count(e) ? &players[e] : nullptr; }
+template<> GameStateComponent* Registry::getComponent(Entity e) { return gameStates.count(e) ? &gameStates[e] : nullptr; }
+
+// -------------------- ECS: Systems --------------------
+
 class InputSystem {
 public:
-    void update(Scene& scene, GLFWwindow* window, float dt) {
-        auto paddles = scene.view<CTag, CTransform>();
-        for (auto* e : paddles) {
-            if (e->getComponent<CTag>().tag == "Paddle") {
-                auto& trans = e->getComponent<CTransform>();
+    void Update(Registry& registry, GLFWwindow* window, float dt) {
+        // Hledáme hráče (Paddle)
+        for (auto& [entity, playerCtrl] : registry.players) {
+            auto* transform = registry.getComponent<TransformComponent>(entity);
+            if (!transform) continue;
 
-                double xpos;
-                glfwGetCursorPos(window, &xpos, nullptr);
-                int width;
-                glfwGetWindowSize(window, &width, nullptr);
+            // Mouse logic
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            int width, height;
+            glfwGetWindowSize(window, &width, &height);
 
-                float normX = (float)xpos / width;
-                float worldX = Config::World::MIN_X + normX * (Config::World::MAX_X - Config::World::MIN_X);
+            float normX = (float)xpos / width;
+            float worldX = Config::World::MIN_X + normX * (Config::World::MAX_X - Config::World::MIN_X);
 
-                // Smooth follow
-                trans.pos.x += (worldX - trans.pos.x) * 15.0f * dt;
+            float prevX = transform->position.x;
+            // Smooth movement
+            transform->position.x += (worldX - transform->position.x) * 15.0f * dt;
 
-                // Clamp
-                float halfW = trans.scale.x * 0.5f;
-                trans.pos.x = std::clamp(trans.pos.x, Config::World::MIN_X + halfW, Config::World::MAX_X - halfW);
+            // Clamp
+            float halfW = transform->scale.x * 0.5f;
+            transform->position.x = std::clamp(transform->position.x, Config::World::MIN_X + halfW, Config::World::MAX_X - halfW);
+
+            // Výpočet rychlosti pádla pro faleš
+            if (dt > 0.0f) {
+                playerCtrl.velocityX = (transform->position.x - prevX) / dt;
             }
-        }
-    }
-};
-
-// --- PHYSICS SYSTEM ---
-class PhysicsSystem {
-public:
-    // Callbacks pro komunikaci s herní logikou
-    std::function<void(int)> onScore;
-    std::function<void()> onBallLost;
-
-    void update(Scene& scene, float dt) {
-        // 1. Pohyb (Integration)
-        for (auto* e : scene.view<CRigidBody, CTransform>()) {
-            auto& rb = e->getComponent<CRigidBody>();
-            if (rb.isStatic) continue;
-
-            auto& tr = e->getComponent<CTransform>();
-            tr.pos += rb.velocity * dt;
+            playerCtrl.lastX = transform->position.x;
         }
 
-        // 2. Kolize Míče (Specifická logika pro Arkanoid)
-        Entity* ball = nullptr;
-        Entity* paddle = nullptr;
-
-        // Najdeme klíčové entity
-        for(auto* e : scene.view<CTag>()) {
-            if(e->getComponent<CTag>().tag == "Ball") ball = e;
-            if(e->getComponent<CTag>().tag == "Paddle") paddle = e;
-        }
-
-        if(!ball) return;
-
-        handleWallCollisions(ball);
-        if (paddle) handlePaddleCollision(ball, paddle);
-        handleBrickCollisions(scene, ball);
-    }
-
-private:
-    bool checkAABB(const glm::vec3& boxPos, const glm::vec3& boxScale, const glm::vec3& spherePos, float radius) {
-        float halfW = boxScale.x * 0.5f;
-        float halfH = boxScale.y * 0.5f;
-        return (spherePos.x + radius > boxPos.x - halfW && spherePos.x - radius < boxPos.x + halfW &&
-                spherePos.y + radius > boxPos.y - halfH && spherePos.y - radius < boxPos.y + halfH);
-    }
-
-    void handleWallCollisions(Entity* ball) {
-        auto& tr = ball->getComponent<CTransform>();
-        auto& rb = ball->getComponent<CRigidBody>();
-
-        if (tr.pos.x <= Config::World::MIN_X || tr.pos.x >= Config::World::MAX_X) rb.velocity.x *= -1.0f;
-        if (tr.pos.y >= Config::World::MAX_Y) rb.velocity.y *= -1.0f;
-
-        if (tr.pos.y < Config::World::MIN_Y) {
-            if(onBallLost) onBallLost();
-        }
-    }
-
-    void handlePaddleCollision(Entity* ball, Entity* paddle) {
-        auto& bTr = ball->getComponent<CTransform>();
-        auto& bRb = ball->getComponent<CRigidBody>();
-        auto& bCol = ball->getComponent<CCollider>();
-
-        auto& pTr = paddle->getComponent<CTransform>();
-        auto& pCol = paddle->getComponent<CCollider>(); // Box
-
-        if (checkAABB(pTr.pos, pCol.boxSize, bTr.pos, bCol.radius)) {
-            float diff = bTr.pos.x - pTr.pos.x;
-            float percent = diff / (pCol.boxSize.x * 0.5f);
-
-            bRb.velocity.x = percent * 10.0f;
-            bRb.velocity.y = std::abs(bRb.velocity.y); // Vždy nahoru
-            bTr.pos.y = pTr.pos.y + pCol.boxSize.y * 0.5f + bCol.radius + 0.1f;
-
-            // Speed up
-            bRb.velocity *= Config::Ball::SPEEDUP_FACTOR;
-            if(glm::length(bRb.velocity) > Config::Ball::MAX_SPEED)
-                bRb.velocity = glm::normalize(bRb.velocity) * Config::Ball::MAX_SPEED;
-        }
-    }
-
-    void handleBrickCollisions(Scene& scene, Entity* ball) {
-        auto& bTr = ball->getComponent<CTransform>();
-        auto& bRb = ball->getComponent<CRigidBody>();
-        auto& bCol = ball->getComponent<CCollider>();
-
-        // Optimalizace: V reálném enginu použij QuadTree. Tady iterujeme.
-        for (auto* e : scene.view<CTag, CTransform, CCollider>()) {
-            if (e->getComponent<CTag>().tag == "Brick" && e->isActive()) {
-                auto& brTr = e->getComponent<CTransform>();
-                auto& brCol = e->getComponent<CCollider>();
-
-                if (checkAABB(brTr.pos, brCol.boxSize, bTr.pos, bCol.radius)) {
-                    e->destroy(); // Označit ke smazání
-                    if(onScore) onScore(Config::SCORE_PER_BRICK);
-
-                    glm::vec3 delta = bTr.pos - brTr.pos;
-                    if (abs(delta.x) > abs(delta.y)) bRb.velocity.x *= -1.0f;
-                    else bRb.velocity.y *= -1.0f;
-
-                    break; // Max 1 kolize za frame proti tunelování
+        // Space to launch
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            for (auto& [entity, state] : registry.gameStates) {
+                if (registry.tags[entity].type == TagType::Ball && !state.launched && !registry.globalState.gameOver) {
+                    state.launched = true;
+                    // Reset velocity vector if needed, or rely on initialization
                 }
             }
         }
     }
 };
 
-// --- RENDER SYSTEM ---
-class RenderSystem {
-    std::unique_ptr<Buffer> uboCamera;
-    std::unique_ptr<Buffer> vboInstance;
-    std::unique_ptr<Buffer> vboColor;
-
-    // Batching struktura
-    struct Batch {
-        Mesh* mesh;
-        std::vector<glm::mat4> matrices;
-        std::vector<glm::vec4> colors;
-    };
-
+class PhysicsSystem {
 public:
-    void init() {
-        uboCamera = std::make_unique<Buffer>(GL_UNIFORM_BUFFER);
-        uboCamera->allocate(2 * sizeof(glm::mat4));
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, uboCamera->ID);
+    void Update(Registry& registry, float dt) {
+        if (registry.globalState.gameOver) return;
 
-        // Pre-allocate instance buffers (velký buffer, aby se nemuselo realokovat)
-        vboInstance = std::make_unique<Buffer>(GL_ARRAY_BUFFER);
-        vboInstance->allocate(2000 * sizeof(glm::mat4));
-        vboColor = std::make_unique<Buffer>(GL_ARRAY_BUFFER);
-        vboColor->allocate(2000 * sizeof(glm::vec4));
+        // 1. Move Ball
+        Entity ballEntity = NULL_ENTITY;
+        TransformComponent* ballTrans = nullptr;
+        RigidbodyComponent* ballRb = nullptr;
+        GameStateComponent* ballState = nullptr;
+        ColliderComponent* ballCol = nullptr;
+
+        // Najdeme míček (v ECS bychom ideálně iterovali přes View<Tag, Transform...>)
+        for (auto& [e, tag] : registry.tags) {
+            if (tag.type == TagType::Ball) {
+                ballEntity = e;
+                ballTrans = registry.getComponent<TransformComponent>(e);
+                ballRb = registry.getComponent<RigidbodyComponent>(e);
+                ballState = registry.getComponent<GameStateComponent>(e);
+                ballCol = registry.getComponent<ColliderComponent>(e);
+                break;
+            }
+        }
+
+        if (!ballEntity || !ballState) return;
+
+        // Logic for unlaunched ball (sticky to paddle)
+        if (!ballState->launched) {
+            // Find paddle
+            for (auto& [pe, ptag] : registry.tags) {
+                if (ptag.type == TagType::Paddle) {
+                    auto* pTrans = registry.getComponent<TransformComponent>(pe);
+                    if (pTrans) {
+                        ballTrans->position.x = pTrans->position.x;
+                        ballTrans->position.y = pTrans->position.y + pTrans->scale.y * 0.5f + ballCol->radius + 0.2f;
+                    }
+                    break;
+                }
+            }
+            return;
+        }
+
+        // Physics Integration
+        ballTrans->position += ballRb->velocity * dt;
+
+        // Wall collisions
+        if (ballTrans->position.x <= Config::World::MIN_X) {
+            ballTrans->position.x = Config::World::MIN_X;
+            ballRb->velocity.x *= -1.0f;
+        } else if (ballTrans->position.x >= Config::World::MAX_X) {
+            ballTrans->position.x = Config::World::MAX_X;
+            ballRb->velocity.x *= -1.0f;
+        }
+        if (ballTrans->position.y >= Config::World::MAX_Y) {
+            ballTrans->position.y = Config::World::MAX_Y;
+            ballRb->velocity.y *= -1.0f;
+        }
+
+        // Entity Collisions
+        // Iterate all entities with Colliders that are NOT the ball
+        std::vector<Entity> destroyedEntities;
+
+        for (auto& [targetE, targetCol] : registry.colliders) {
+            if (targetE == ballEntity) continue;
+
+            auto* targetTrans = registry.getComponent<TransformComponent>(targetE);
+            if (!targetTrans) continue;
+
+            if (checkAABB(targetTrans->position, targetTrans->scale, ballTrans->position, ballCol->radius)) {
+
+                TagComponent* tag = registry.getComponent<TagComponent>(targetE);
+
+                // Paddle Collision
+                if (tag && tag->type == TagType::Paddle) {
+                    glm::vec3 normal(0.0f, 1.0f, 0.0f);
+                    ballRb->velocity = reflectVector(ballRb->velocity, normal);
+
+                    // Add spin from player component
+                    auto* playerCtrl = registry.getComponent<PlayerControlComponent>(targetE);
+                    if (playerCtrl) {
+                        ballRb->velocity.x += playerCtrl->velocityX * 0.12f;
+                    }
+
+                    // Push out
+                    ballTrans->position.y = targetTrans->position.y + targetTrans->scale.y * 0.5f + ballCol->radius + 0.1f;
+
+                    // Speed up
+                    applySpeedup(ballRb->velocity);
+                }
+                // Brick Collision
+                else if (tag && tag->type == TagType::Brick) {
+                    destroyedEntities.push_back(targetE);
+                    registry.globalState.score += Config::Stats::SCORE_PER_BRICK;
+
+                    // Resolve Bounce
+                    glm::vec3 delta = ballTrans->position - targetTrans->position;
+                    glm::vec3 normal;
+                    // Velmi hrubá aproximace normály
+                    if (std::abs(delta.x) > std::abs(delta.y)) { // Více ze strany
+                        normal = glm::vec3(delta.x > 0 ? 1.0f : -1.0f, 0.0f, 0.0f);
+                    } else { // Více z vrchu/spodu
+                        normal = glm::vec3(0.0f, delta.y > 0 ? 1.0f : -1.0f, 0.0f);
+                    }
+                    ballRb->velocity = reflectVector(ballRb->velocity, normal);
+                    applySpeedup(ballRb->velocity);
+                }
+            }
+        }
+
+        // Remove destroyed bricks
+        for (auto e : destroyedEntities) {
+            registry.destroyEntity(e);
+        }
     }
 
-    void setupInstancedAttributes(VertexArray& vao) {
+private:
+    bool checkAABB(const glm::vec3& bPos, const glm::vec3& bScale, const glm::vec3& spherePos, float r) {
+        float halfW = bScale.x * 0.5f;
+        float halfH = bScale.y * 0.5f;
+        return (spherePos.x + r > bPos.x - halfW && spherePos.x - r < bPos.x + halfW &&
+                spherePos.y + r > bPos.y - halfH && spherePos.y - r < bPos.y + halfH);
+    }
+
+    glm::vec3 reflectVector(const glm::vec3& v, const glm::vec3& normal) {
+        return v - 2.0f * glm::dot(v, normal) * normal;
+    }
+
+    void applySpeedup(glm::vec3& vel) {
+        vel *= Config::Ball::SPEEDUP_FACTOR;
+        if (glm::length(vel) > Config::Ball::MAX_SPEED)
+            vel = glm::normalize(vel) * Config::Ball::MAX_SPEED;
+    }
+};
+
+class GameLogicSystem {
+public:
+    void Update(Registry& registry) {
+        // Check Death
+        Entity ballEntity = NULL_ENTITY;
+        for (auto& [e, tag] : registry.tags) if (tag.type == TagType::Ball) ballEntity = e;
+
+        if (ballEntity != NULL_ENTITY) {
+            auto* trans = registry.getComponent<TransformComponent>(ballEntity);
+            if (trans && trans->position.y < Config::World::MIN_Y) {
+                registry.globalState.lives--;
+                if (registry.globalState.lives <= 0) {
+                    registry.globalState.gameOver = true;
+                } else {
+                    // Reset Ball & Paddle
+                    resetRound(registry, ballEntity);
+                }
+            }
+        }
+
+        // Check Victory
+        bool anyBrick = false;
+        for (auto& [e, tag] : registry.tags) {
+            if (tag.type == TagType::Brick) {
+                anyBrick = true;
+                break;
+            }
+        }
+        if (!anyBrick) {
+            registry.globalState.gameWon = true;
+            registry.globalState.gameOver = true;
+        }
+    }
+
+    void resetRound(Registry& registry, Entity ball) {
+        auto* ballState = registry.getComponent<GameStateComponent>(ball);
+        auto* ballRb = registry.getComponent<RigidbodyComponent>(ball);
+        auto* ballTrans = registry.getComponent<TransformComponent>(ball);
+
+        if (ballState) ballState->launched = false;
+        if (ballRb) ballRb->velocity = Config::Ball::START_VEL;
+        // Position se resetuje v PhysicsSystem (sticky logic)
+
+        // Reset Paddle Position
+        for(auto& [e, tag] : registry.tags) {
+            if(tag.type == TagType::Paddle) {
+                auto* pt = registry.getComponent<TransformComponent>(e);
+                if(pt) pt->position = Config::Paddle::START_POS;
+                auto* pc = registry.getComponent<PlayerControlComponent>(e);
+                if(pc) { pc->velocityX = 0; pc->lastX = Config::Paddle::START_POS.x; }
+            }
+        }
+    }
+};
+
+class RenderSystem {
+    // Buffery pro instancing
+    std::unique_ptr<Buffer> vboInstance;
+    std::unique_ptr<Buffer> vboColor;
+    // Temporary vectors
+    std::vector<glm::mat4> matrices;
+    std::vector<glm::vec4> colors;
+
+public:
+    void Init() {
+        // Allocate max size
+        size_t maxInstances = Config::Bricks::ROWS * Config::Bricks::COLS + 100;
+        vboInstance = std::make_unique<Buffer>(GL_ARRAY_BUFFER);
+        vboInstance->allocate(maxInstances * sizeof(glm::mat4));
+        vboColor = std::make_unique<Buffer>(GL_ARRAY_BUFFER);
+        vboColor->allocate(maxInstances * sizeof(glm::vec4));
+    }
+
+    // Nastaví VAO pro instancování (musí se volat pro každý Mesh, který to podporuje)
+    void SetupVAO(const VertexArray& vao) {
         vao.bind();
         vboInstance->bind();
         size_t vec4Size = sizeof(glm::vec4);
@@ -510,273 +676,251 @@ public:
         vao.unbind();
     }
 
-    void render(Scene& scene, ResourceManager& res, float aspectRatio) {
-        // 1. Update Camera
-        static const glm::vec3 camPos = {0.0f, 4.0f, 95.0f};
-        glm::mat4 view = glm::lookAt(camPos, {0.0f, -0.1f, -1.0f}, {0.0f, 1.0f, 0.0f});
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 150.0f);
+    void Update(Registry& registry, Shader& shader, const glm::mat4& view, const glm::mat4& projection) {
+        shader.use();
+        // Camera Uniforms jsou v UBO spravovaném v Game třídě, zde jen kreslíme
 
-        uboCamera->bind();
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
-        glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
-        uboCamera->unbind();
+        // Seskupíme entity podle Meshe pro efektivní instancing
+        // Mesh* -> list of entities
+        std::unordered_map<Mesh*, std::vector<Entity>> batch;
 
-        // 2. Prepare Batches (ECS Magic: Seskupit podle meshe)
-        std::unordered_map<Mesh*, Batch> batches;
-
-        for(auto* e : scene.view<CRenderable, CTransform>()) {
-            auto& ren = e->getComponent<CRenderable>();
-            auto& tr = e->getComponent<CTransform>();
-
-            if(!ren.meshPtr) continue;
-
-            batches[ren.meshPtr].mesh = ren.meshPtr;
-            batches[ren.meshPtr].matrices.push_back(tr.getMatrix());
-            batches[ren.meshPtr].colors.push_back(ren.color);
+        for (auto& [e, rend] : registry.renderables) {
+            if (!rend.visible || !rend.mesh) continue;
+            batch[rend.mesh].push_back(e);
         }
 
-        // 3. Draw Batches
-        res.shader->use();
+        // Render Batches
+        for (auto& [mesh, entities] : batch) {
+            matrices.clear();
+            colors.clear();
+            matrices.reserve(entities.size());
+            colors.reserve(entities.size());
 
-        // Ensure VAO has instance attributes (Lazy init - jen jednou)
-        static bool setupDone = false;
-        if(!setupDone) {
-            setupInstancedAttributes(*res.cubeMesh->vao);
-            setupInstancedAttributes(*res.sphereMesh->vao);
-            setupDone = true;
-        }
+            for (Entity e : entities) {
+                auto* trans = registry.getComponent<TransformComponent>(e);
+                auto* rend = registry.getComponent<RenderComponent>(e);
+                if (trans && rend) {
+                    matrices.push_back(trans->getMatrix());
+                    colors.push_back(rend->color);
+                }
+            }
 
-        for (auto& [mesh, batch] : batches) {
-            if(batch.matrices.empty()) continue;
-
-            // Upload dat pro instancing
-            vboInstance->setSubData(batch.matrices);
-            vboColor->setSubData(batch.colors);
-
-            // Draw
-            mesh->vao->bind();
-            glDrawElementsInstanced(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_INT, 0, (GLsizei)batch.matrices.size());
-            mesh->vao->unbind();
-        }
-    }
-};
-
-// --- GAME LOGIC SYSTEM ---
-// Řídí pravidla hry, respawn, skóre
-class GameLogicSystem {
-public:
-    int lives = Config::INITIAL_LIVES;
-    int score = 0;
-    bool gameOver = false;
-
-    void initGame(Scene& scene, ResourceManager& res) {
-        scene.clear();
-        score = 0;
-        lives = Config::INITIAL_LIVES;
-        gameOver = false;
-
-        createLevel(scene, res);
-        spawnPaddle(scene, res);
-        spawnBall(scene, res);
-        scene.updateLists(); // Aplikuj změny
-    }
-
-    void resetBall(Scene& scene, ResourceManager& res) {
-        // Smaž starý míč
-        for(auto* e : scene.view<CTag>()) {
-            if(e->getComponent<CTag>().tag == "Ball") e->destroy();
-        }
-        scene.updateLists();
-        spawnBall(scene, res);
-    }
-
-private:
-    void createLevel(Scene& scene, ResourceManager& res) {
-        int rows = Config::Bricks::ROWS;
-        int cols = Config::Bricks::COLS;
-        float totalW = Config::World::MAX_X - Config::World::MIN_X;
-        float bW = totalW / cols;
-        float bH = Config::Bricks::SCALE.y;
-
-        for (int r = 0; r < rows; ++r) {
-            for (int c = 0; c < cols; ++c) {
-                auto br = scene.createEntity();
-                br->addComponent<CTag>("Brick");
-
-                auto& tr = br->addComponent<CTransform>();
-                tr.pos = { Config::World::MIN_X + bW/2 + c*bW, Config::Bricks::START_Y + r*(bH+0.5f), 0.0f };
-                tr.scale = { bW - 0.5f, bH, 2.0f };
-
-                auto& ren = br->addComponent<CRenderable>();
-                ren.meshPtr = res.cubeMesh.get();
-                ren.color = Random::RandomColor();
-
-                auto& col = br->addComponent<CCollider>();
-                col.type = CCollider::BOX;
-                col.boxSize = tr.scale;
+            if (!matrices.empty()) {
+                vboInstance->setSubData(matrices);
+                vboColor->setSubData(colors);
+                mesh->drawInstanced((GLsizei)matrices.size());
             }
         }
     }
 
-    void spawnPaddle(Scene& scene, ResourceManager& res) {
-        auto p = scene.createEntity();
-        p->addComponent<CTag>("Paddle");
-
-        auto& tr = p->addComponent<CTransform>();
-        tr.pos = Config::Paddle::START_POS;
-        tr.scale = Config::Paddle::SCALE;
-
-        auto& ren = p->addComponent<CRenderable>();
-        ren.meshPtr = res.cubeMesh.get();
-        ren.color = {0.2f, 0.8f, 0.2f, 1.0f};
-
-        auto& rb = p->addComponent<CRigidBody>();
-        rb.isStatic = true; // Ovládáno Input systémem, ne fyzikou
-
-        auto& col = p->addComponent<CCollider>();
-        col.type = CCollider::BOX;
-        col.boxSize = tr.scale;
-    }
-
-    void spawnBall(Scene& scene, ResourceManager& res) {
-        auto b = scene.createEntity();
-        b->addComponent<CTag>("Ball");
-
-        auto& tr = b->addComponent<CTransform>();
-        tr.pos = Config::Ball::START_POS;
-        tr.scale = glm::vec3(Config::Ball::RADIUS);
-
-        auto& ren = b->addComponent<CRenderable>();
-        ren.meshPtr = res.sphereMesh.get();
-        ren.color = {1.0f, 0.2f, 0.2f, 1.0f};
-
-        auto& rb = b->addComponent<CRigidBody>();
-        rb.velocity = Config::Ball::START_VEL;
-        rb.isStatic = false;
-
-        auto& col = b->addComponent<CCollider>();
-        col.type = CCollider::SPHERE;
-        col.radius = Config::Ball::RADIUS;
-    }
-};
-
-// ==================== MAIN APP ====================
-class Game {
-    GLFWwindow* window;
-    ResourceManager resources;
-    Scene scene;
-
-    // Instance Systémů
-    InputSystem inputSystem;
-    PhysicsSystem physicsSystem;
-    RenderSystem renderSystem;
-    GameLogicSystem gameLogic;
-
-public:
-    bool init() {
-        if (!glfwInit()) return false;
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        window = glfwCreateWindow(Config::SCREEN_WIDTH, Config::SCREEN_HEIGHT, "OOP ECS Arkanoid", nullptr, nullptr);
-        if (!window) return false;
-        glfwMakeContextCurrent(window);
-        glfwSwapInterval(1); // VSync ON
-        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return false;
-        glEnable(GL_DEPTH_TEST);
-
-        // ImGui
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGui::StyleColorsDark();
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
-        ImGui_ImplOpenGL3_Init("#version 330 core");
-
-        // Init Engine
-        resources.init();
-        renderSystem.init();
-
-        // Bind Events (Fyzika hlásí události Logic systému)
-        physicsSystem.onScore = [&](int points) { gameLogic.score += points; };
-        physicsSystem.onBallLost = [&]() {
-            gameLogic.lives--;
-            if (gameLogic.lives <= 0) gameLogic.gameOver = true;
-            else gameLogic.resetBall(scene, resources);
-        };
-
-        // Start Game
-        gameLogic.initGame(scene, resources);
-        return true;
-    }
-
-    void run() {
-        float lastTime = (float)glfwGetTime();
-        while (!glfwWindowShouldClose(window)) {
-            float now = (float)glfwGetTime();
-            float dt = now - lastTime;
-            lastTime = now;
-
-            glfwPollEvents();
-
-            if (!gameLogic.gameOver) {
-                inputSystem.update(scene, window, dt);
-                physicsSystem.update(scene, dt);
-                scene.updateLists(); // Clean up dead entities
-            }
-
-            render();
-        }
-        cleanup();
-    }
-
-private:
-    void render() {
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // RenderSystem vše zařídí (včetně instancingu)
-        renderSystem.render(scene, resources, (float)Config::SCREEN_WIDTH/Config::SCREEN_HEIGHT);
-        renderUI();
-
-        glfwSwapBuffers(window);
-    }
-
-    void renderUI() {
+    void DrawUI(Registry& registry, Stats& stats) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::SetNextWindowPos(ImVec2(10, 10));
-        ImGui::Begin("Info", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
-        ImGui::Text("Score: %d", gameLogic.score);
-        ImGui::Text("Lives: %d", gameLogic.lives);
-        ImGui::Text("Entities: %zu", scene.entities.size());
+        // 1. Vykreslit Stats UI (Teď je to bezpečné, jsme uvnitř framu)
+        stats.drawUI();
+
+        // 2. Vykreslit Game UI
+        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+        ImGui::Begin("GameInfo", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+        ImGui::SetWindowFontScale(1.5f);
+        ImGui::TextColored(ImVec4(1, 1, 0, 1), "Score: %d", registry.globalState.score);
+        ImGui::TextColored(ImVec4(1, 0, 0, 1), "Lives: %d", registry.globalState.lives);
         ImGui::End();
 
-        if (gameLogic.gameOver) {
-            ImGui::OpenPopup("GameOver");
+        if (registry.globalState.gameOver) {
+            if(!registry.globalState.gameWon) ImGui::OpenPopup("GameOver");
+            else ImGui::OpenPopup("GameWon");
         }
+
         if (ImGui::BeginPopupModal("GameOver", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("GAME OVER");
-            if (ImGui::Button("Restart")) {
-                gameLogic.initGame(scene, resources);
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Exit")) glfwSetWindowShouldClose(window, true);
+            ImGui::Text("Final Score: %d", registry.globalState.score);
+            // Pro restart implementuj callback nebo check v Game loopu
+            ImGui::Text("(Press R to Restart)");
+            if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+        if (ImGui::BeginPopupModal("GameWon", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("CONGRATULATIONS!");
+            ImGui::Text("Score: %d", registry.globalState.score);
+            if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
         }
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
+};
+
+// -------------------- Game Class (Orchestrator) --------------------
+class Game {
+    struct WindowDeleter { void operator()(GLFWwindow* ptr) { glfwDestroyWindow(ptr); } };
+    std::unique_ptr<GLFWwindow, WindowDeleter> window;
+
+    // Resources
+    std::unique_ptr<Shader> shader;
+    std::unique_ptr<Mesh> cubeMesh;
+    std::unique_ptr<Mesh> sphereMesh;
+    std::unique_ptr<Buffer> uboCamera;
+
+    // ECS
+    Registry registry;
+    InputSystem inputSystem;
+    PhysicsSystem physicsSystem;
+    RenderSystem renderSystem;
+    GameLogicSystem logicSystem;
+
+    Stats stats;
+    glm::mat4 view, proj;
+
+public:
+    bool init() {
+        if (!glfwInit()) return false;
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        window.reset(glfwCreateWindow(Config::Camera::SCREEN_WIDTH, Config::Camera::SCREEN_HEIGHT, "Arkanoid ECS", nullptr, nullptr));
+        if (!window) return false;
+        glfwMakeContextCurrent(window.get());
+        glfwSwapInterval(0);
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return false;
+
+        glEnable(GL_DEPTH_TEST);
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForOpenGL(window.get(), true);
+        ImGui_ImplOpenGL3_Init("#version 450");
+
+        initResources();
+        resetGame();
+        return true;
+    }
+
+    void run() {
+        view = glm::lookAt(Config::Camera::CAMERA_POS, Config::Camera::CAMERA_POS + Config::Camera::CAMERA_FRONT, Config::Camera::CAMERA_UP);
+        proj = glm::perspective(glm::radians(45.0f), (float)Config::Camera::SCREEN_WIDTH / Config::Camera::SCREEN_HEIGHT, 0.1f, 100.0f);
+
+        float lastTime = (float)glfwGetTime();
+        while (!glfwWindowShouldClose(window.get())) {
+            float now = (float)glfwGetTime();
+            float dt = std::min(now - lastTime, 0.05f);
+            lastTime = now;
+
+            glfwPollEvents();
+
+            // --- ECS Update Loop ---
+
+            // 1. Input
+            if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window.get(), true);
+            inputSystem.Update(registry, window.get(), dt);
+
+            // 2. Logic & Physics
+            if (!registry.globalState.gameOver) {
+                physicsSystem.Update(registry, dt);
+                logicSystem.Update(registry);
+            } else {
+                // Restart logic (simple hack)
+                if (glfwGetKey(window.get(), GLFW_KEY_R) == GLFW_PRESS) {
+                    resetGame();
+                }
+            }
+
+            // 3. Render
+            // Update Camera UBO
+            uboCamera->bind();
+            glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
+            glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
+            uboCamera->unbind();
+
+            glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            renderSystem.Update(registry, *shader, view, proj);
+
+            stats.update(dt);
+
+            // --- OPRAVA ZDE ---
+            // Smazáno: stats.drawUI();  <-- TOTO ZPŮSOBOVALO CHYBU
+            // Upraveno: Posíláme stats dovnitř
+            renderSystem.DrawUI(registry, stats);
+
+            glfwSwapBuffers(window.get());
+        }
+        cleanup();
+    }
+
+private:
+    void initResources() {
+        shader = std::make_unique<Shader>(VS_SRC, FS_SRC);
+        cubeMesh = MeshFactory::createCube();
+        sphereMesh = MeshFactory::createSphere(Config::Ball::RADIUS);
+
+        uboCamera = std::make_unique<Buffer>(GL_UNIFORM_BUFFER);
+        uboCamera->allocate(2 * sizeof(glm::mat4));
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, uboCamera->ID);
+
+        renderSystem.Init();
+        renderSystem.SetupVAO(*cubeMesh->vao);
+        renderSystem.SetupVAO(*sphereMesh->vao);
+    }
+
+    void resetGame() {
+        registry.clear();
+        registry.globalState = {0, Config::Stats::INITIAL_LIVES, false, false};
+
+        // --- Create Entities ---
+
+        // 1. Paddle
+        Entity paddle = registry.createEntity();
+        registry.addComponent(paddle, TagComponent{TagType::Paddle});
+        registry.addComponent(paddle, TransformComponent{Config::Paddle::START_POS, Config::Paddle::SCALE});
+        registry.addComponent(paddle, RenderComponent{cubeMesh.get(), glm::vec4(0.3f, 0.8f, 0.3f, 1.0f)});
+        registry.addComponent(paddle, ColliderComponent{ColliderComponent::Box});
+        registry.addComponent(paddle, PlayerControlComponent{});
+
+        // 2. Ball
+        Entity ball = registry.createEntity();
+        registry.addComponent(ball, TagComponent{TagType::Ball});
+        registry.addComponent(ball, TransformComponent{Config::Ball::START_POS, glm::vec3(Config::Ball::RADIUS)}); // Scale only visual
+        registry.addComponent(ball, RigidbodyComponent{Config::Ball::START_VEL});
+        registry.addComponent(ball, RenderComponent{sphereMesh.get(), glm::vec4(1.0f, 0.2f, 0.2f, 1.0f)});
+        registry.addComponent(ball, ColliderComponent{ColliderComponent::Sphere, Config::Ball::RADIUS});
+        registry.addComponent(ball, GameStateComponent{false});
+
+        // 3. Bricks
+        int rows = Config::Bricks::ROWS;
+        int cols = Config::Bricks::COLS;
+        float totalWidth = Config::World::MAX_X - Config::World::MIN_X;
+        float spacingX = 0.2f;
+        float brickWidth = (totalWidth - (cols - 1) * spacingX) / cols;
+        float brickHeight = Config::Bricks::SCALE.y;
+        float startX = Config::World::MIN_X + brickWidth * 0.5f;
+
+        for (int r = 0; r < rows; ++r) {
+            for (int c = 0; c < cols; ++c) {
+                Entity brick = registry.createEntity();
+                glm::vec3 pos = {
+                    startX + c * (brickWidth + spacingX),
+                    Config::Bricks::START_Y + r * (brickHeight + spacingX),
+                    0.0f
+                };
+                glm::vec3 scale = {brickWidth, brickHeight, Config::Bricks::SCALE.z};
+
+                registry.addComponent(brick, TagComponent{TagType::Brick});
+                registry.addComponent(brick, TransformComponent{pos, scale});
+                registry.addComponent(brick, RenderComponent{cubeMesh.get(), Random::RandomColor()});
+                registry.addComponent(brick, ColliderComponent{ColliderComponent::Box});
+            }
+        }
+    }
 
     void cleanup() {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
-        glfwDestroyWindow(window);
-        glfwTerminate();
     }
 };
 
@@ -784,9 +928,6 @@ int main() {
     Game game;
     if (game.init()) {
         game.run();
-    } else {
-        //std::cerr << "Failed to initialize game." << std::endl;
-        return -1;
     }
     return 0;
 }
