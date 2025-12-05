@@ -36,7 +36,7 @@ constexpr float MAX_Y = 20.0f;
 }
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 15;
+constexpr int COLS = 10;
 constexpr float START_Y = 2.0f;
 inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
 }
@@ -529,6 +529,7 @@ public:
         GameStateComponent* ballState = nullptr;
         ColliderComponent* ballCol = nullptr;
 
+        // Najdeme míček
         for (auto& [e, tag] : registry.tags) {
             if (tag.type == TagType::Ball) {
                 ballEntity = e;
@@ -542,6 +543,7 @@ public:
 
         if (!ballEntity || !ballState) return;
 
+        // Logika před odpálením (Sticky ball)
         if (!ballState->launched) {
             for (auto& [pe, ptag] : registry.tags) {
                 if (ptag.type == TagType::Paddle) {
@@ -556,27 +558,39 @@ public:
             return;
         }
 
+        // Pohyb míčku
         ballTrans->position += ballRb->velocity * dt;
 
-        if (ballTrans->position.x <= Config::World::MIN_X) { ballTrans->position.x = Config::World::MIN_X; ballRb->velocity.x *= -1.0f; }
-        else if (ballTrans->position.x >= Config::World::MAX_X) { ballTrans->position.x = Config::World::MAX_X; ballRb->velocity.x *= -1.0f; }
-        if (ballTrans->position.y >= Config::World::MAX_Y) { ballTrans->position.y = Config::World::MAX_Y; ballRb->velocity.y *= -1.0f; }
+        // Odraz od stěn (Walls)
+        if (ballTrans->position.x <= Config::World::MIN_X) {
+            ballTrans->position.x = Config::World::MIN_X;
+            ballRb->velocity.x *= -1.0f;
+        }
+        else if (ballTrans->position.x >= Config::World::MAX_X) {
+            ballTrans->position.x = Config::World::MAX_X;
+            ballRb->velocity.x *= -1.0f;
+        }
+        if (ballTrans->position.y >= Config::World::MAX_Y) {
+            ballTrans->position.y = Config::World::MAX_Y;
+            ballRb->velocity.y *= -1.0f;
+        }
 
+        // Kolize s entitami (Paddle, Bricks)
         std::vector<Entity> destroyedEntities;
 
         for (auto& [targetE, targetCol] : registry.colliders) {
             if (targetE == ballEntity) continue;
-            // PowerUpy nemají kolizi s míčkem (ignorujeme je zde)
-            if (registry.powerUps.count(targetE)) continue;
+            if (registry.powerUps.count(targetE)) continue; // Ignorujeme powerupy
 
             auto* targetTrans = registry.getComponent<TransformComponent>(targetE);
             if (!targetTrans) continue;
 
-            // Sphere vs Box AABB approximation
+            // Výpočet AABB polovičních velikostí
             float r = ballCol->radius;
             float halfW = targetTrans->scale.x * 0.5f;
             float halfH = targetTrans->scale.y * 0.5f;
 
+            // Kontrola AABB
             bool hit = (ballTrans->position.x + r > targetTrans->position.x - halfW &&
                         ballTrans->position.x - r < targetTrans->position.x + halfW &&
                         ballTrans->position.y + r > targetTrans->position.y - halfH &&
@@ -585,34 +599,68 @@ public:
             if (hit) {
                 TagComponent* tag = registry.getComponent<TagComponent>(targetE);
 
+                // --- PADDLE ---
                 if (tag && tag->type == TagType::Paddle) {
-                    ballRb->velocity = reflectVector(ballRb->velocity, glm::vec3(0,1,0));
+                    // U pádla stačí jednoduchý odraz nahoru
+                    ballRb->velocity.y = abs(ballRb->velocity.y); // Vždy nahoru
+
+                    // Faleš
                     auto* playerCtrl = registry.getComponent<PlayerControlComponent>(targetE);
                     if (playerCtrl) ballRb->velocity.x += playerCtrl->velocityX * 0.12f;
-                    ballTrans->position.y = targetTrans->position.y + targetTrans->scale.y * 0.5f + r + 0.1f;
+
+                    // Vytlačení nahoru, aby se nezasekl
+                    ballTrans->position.y = targetTrans->position.y + halfH + r + 0.05f;
                     applySpeedup(ballRb->velocity);
                 }
+                // --- BRICK (Zde je ta zásadní oprava) ---
                 else if (tag && tag->type == TagType::Brick) {
                     destroyedEntities.push_back(targetE);
                     registry.globalState.score += Config::Stats::SCORE_PER_BRICK;
-
-                    // --- SPAWN POWER-UP LOGIC ---
                     TrySpawnPowerUp(registry, targetTrans->position);
-                    // -----------------------------
 
-                    glm::vec3 delta = ballTrans->position - targetTrans->position;
-                    glm::vec3 normal = (std::abs(delta.x) > std::abs(delta.y))
-                                           ? glm::vec3(delta.x > 0 ? 1 : -1, 0, 0)
-                                           : glm::vec3(0, delta.y > 0 ? 1 : -1, 0);
-                    ballRb->velocity = reflectVector(ballRb->velocity, normal);
+                    // --- OPRAVA KOLIZÍ: Penetration Resolution ---
+
+                    // 1. Vypočítáme, jak hluboko je míček v cihle v obou osách
+                    float deltaX = ballTrans->position.x - targetTrans->position.x;
+                    float deltaY = ballTrans->position.y - targetTrans->position.y;
+
+                    // Hloubka průniku (Minkowski Sum)
+                    float intersectX = abs(deltaX) - (halfW + r);
+                    float intersectY = abs(deltaY) - (halfH + r);
+
+                    // Pokud je intersectX větší (blíže k 0, protože jsou záporná čísla při kolizi),
+                    // znamená to, že průnik v ose X je MENŠÍ než v ose Y.
+                    // Tedy: narazili jsme ze strany.
+
+                    if (intersectX > intersectY) {
+                        // Kolize ze strany (Horizontální)
+                        // Vytlačíme míček ven v ose X
+                        if (deltaX > 0.0f)
+                            ballTrans->position.x = targetTrans->position.x + halfW + r;
+                        else
+                            ballTrans->position.x = targetTrans->position.x - halfW - r;
+
+                        ballRb->velocity.x *= -1.0f; // Odraz X
+                    } else {
+                        // Kolize z vrchu/spodu (Vertikální)
+                        // Vytlačíme míček ven v ose Y
+                        if (deltaY > 0.0f)
+                            ballTrans->position.y = targetTrans->position.y + halfH + r;
+                        else
+                            ballTrans->position.y = targetTrans->position.y - halfH - r;
+
+                        ballRb->velocity.y *= -1.0f; // Odraz Y
+                    }
+
                     applySpeedup(ballRb->velocity);
+
+                    break;
                 }
             }
         }
+
         for (auto e : destroyedEntities) registry.destroyEntity(e);
-
     }
-
 private:
     void TrySpawnPowerUp(Registry& reg, glm::vec3 pos) {
         if (Random::Float(0.0f, 1.0f) < Config::PowerUp::DROP_CHANCE) {
@@ -740,8 +788,7 @@ public:
             }
         }
     }
-    // Upravená metoda s callbacky
-    // Upravená metoda s callbacky
+
     void DrawUI(Registry& registry, Stats& stats, std::function<void()> onRestart, std::function<void()> onQuit) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -849,31 +896,57 @@ public:
 
         initResources();
         resetGame();
+        view = glm::lookAt(
+            Config::Camera::CAMERA_POS,
+            Config::Camera::CAMERA_POS + Config::Camera::CAMERA_FRONT,
+            Config::Camera::CAMERA_UP
+            );
+
+        proj = glm::perspective(
+            glm::radians(45.0f),
+            (float)Config::Camera::SCREEN_WIDTH / Config::Camera::SCREEN_HEIGHT,
+            0.1f, 100.0f
+            );
         return true;
     }
 
     void run() {
-        view = glm::lookAt(Config::Camera::CAMERA_POS, Config::Camera::CAMERA_POS + Config::Camera::CAMERA_FRONT, Config::Camera::CAMERA_UP);
-        proj = glm::perspective(glm::radians(45.0f), (float)Config::Camera::SCREEN_WIDTH / Config::Camera::SCREEN_HEIGHT, 0.1f, 100.0f);
+
+
+        const float FIXED_DT = 1.0f / 120.0f; // 120 Hz fyzika
+        float accumulator = 0.0f;
 
         float lastTime = (float)glfwGetTime();
+
         while (!glfwWindowShouldClose(window.get())) {
             float now = (float)glfwGetTime();
-            float dt = std::min(now - lastTime, 0.05f);
+            float frameTime = std::min(now - lastTime, 0.05f); // ochrana proti SPIRAL OF DEATH
             lastTime = now;
 
+            accumulator += frameTime;
+
             glfwPollEvents();
-            if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window.get(), true);
-            if (registry.globalState.gameOver && glfwGetKey(window.get(), GLFW_KEY_R) == GLFW_PRESS) resetGame();
+            if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
+                glfwSetWindowShouldClose(window.get(), true);
 
-            inputSystem.Update(registry, window.get(), dt);
+            if (registry.globalState.gameOver &&
+                glfwGetKey(window.get(), GLFW_KEY_R) == GLFW_PRESS)
+                resetGame();
 
-            if (!registry.globalState.gameOver) {
-                physicsSystem.Update(registry, dt);
-                powerUpSystem.Update(registry, dt); // Update bonusů
-                logicSystem.Update(registry);
+            // INPUT běží FRAME TIME (plynulost)
+            inputSystem.Update(registry, window.get(), frameTime);
+
+            // FYZIKA BĚŽÍ VE FIXED KROKU
+            while (accumulator >= FIXED_DT) {
+                if (!registry.globalState.gameOver) {
+                    physicsSystem.Update(registry, FIXED_DT);
+                    powerUpSystem.Update(registry, FIXED_DT);
+                    logicSystem.Update(registry);
+                }
+                accumulator -= FIXED_DT;
             }
 
+            // === KAMERA UBO ===
             uboCamera->bind();
             glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
             glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
@@ -884,16 +957,22 @@ public:
 
             renderSystem.Update(registry, *shader);
 
-            stats.update(dt);
-            renderSystem.DrawUI(registry, stats,
-                                [&]() { this->resetGame();},
-                                [&]() {glfwSetWindowShouldClose(window.get(), true);}
-                                );
+            // STATISTIKY POŘÁD NA FRAME TIME
+            stats.update(frameTime);
+
+            renderSystem.DrawUI(
+                registry,
+                stats,
+                [&]() { this->resetGame(); },
+                [&]() { glfwSetWindowShouldClose(window.get(), true); }
+                );
 
             glfwSwapBuffers(window.get());
         }
+
         cleanup();
     }
+
 
 private:
     void initResources() {
