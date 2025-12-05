@@ -36,7 +36,7 @@ constexpr float MAX_Y = 20.0f;
 }
 namespace Bricks {
 constexpr int ROWS = 10;
-constexpr int COLS = 30;
+constexpr int COLS = 15;
 constexpr float START_Y = 2.0f;
 inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
 }
@@ -350,35 +350,74 @@ public:
         nextId = 1;
     }
 
-    template<typename T> T& addComponent(Entity e, T component);
-    template<typename T> T* getComponent(Entity e);
+
+    template<typename T>
+    T& addComponent(Entity e, T component) {
+
+        if constexpr (std::is_same_v<T, TagComponent>) {
+            return tags[e] = component;
+        } else if constexpr (std::is_same_v<T, TransformComponent>) {
+            return transforms[e] = component;
+        } else if constexpr (std::is_same_v<T, RigidbodyComponent>) {
+            return rigidbodies[e] = component;
+        } else if constexpr (std::is_same_v<T, ColliderComponent>) {
+            return colliders[e] = component;
+        } else if constexpr (std::is_same_v<T, RenderComponent>) {
+            return renderables[e] = component;
+        } else if constexpr (std::is_same_v<T, PlayerControlComponent>) {
+            return players[e] = component;
+        } else if constexpr (std::is_same_v<T, GameStateComponent>) {
+            return gameStates[e] = component;
+        } else if constexpr (std::is_same_v<T, PowerUpComponent>) {
+            return powerUps[e] = component;
+        } else {
+            static_assert(std::is_same_v<T, T> && false, "Attempted to add an unhandled component type.");
+        }
+    }
+
+    template<typename T>
+    T* getComponent(Entity e) {
+
+        if constexpr (std::is_same_v<T, TagComponent>) {
+            return tags.count(e) ? &tags.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, TransformComponent>) {
+            return transforms.count(e) ? &transforms.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, RigidbodyComponent>) {
+            return rigidbodies.count(e) ? &rigidbodies.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, ColliderComponent>) {
+            return colliders.count(e) ? &colliders.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, RenderComponent>) {
+            return renderables.count(e) ? &renderables.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, PlayerControlComponent>) {
+            return players.count(e) ? &players.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, GameStateComponent>) {
+            return gameStates.count(e) ? &gameStates.at(e) : nullptr;
+        } else if constexpr (std::is_same_v<T, PowerUpComponent>) {
+            return powerUps.count(e) ? &powerUps.at(e) : nullptr;
+        } else {
+            return nullptr;
+        }
+    }
 };
 
-// Template Specs
-template<> TagComponent& Registry::addComponent(Entity e, TagComponent c) { return tags[e] = c; }
-template<> TransformComponent& Registry::addComponent(Entity e, TransformComponent c) { return transforms[e] = c; }
-template<> RigidbodyComponent& Registry::addComponent(Entity e, RigidbodyComponent c) { return rigidbodies[e] = c; }
-template<> ColliderComponent& Registry::addComponent(Entity e, ColliderComponent c) { return colliders[e] = c; }
-template<> RenderComponent& Registry::addComponent(Entity e, RenderComponent c) { return renderables[e] = c; }
-template<> PlayerControlComponent& Registry::addComponent(Entity e, PlayerControlComponent c) { return players[e] = c; }
-template<> GameStateComponent& Registry::addComponent(Entity e, GameStateComponent c) { return gameStates[e] = c; }
-template<> PowerUpComponent& Registry::addComponent(Entity e, PowerUpComponent c) { return powerUps[e] = c; }
+bool checkAABBcvb2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::vec3 &spherePos, float r) {
 
-template<> TagComponent* Registry::getComponent(Entity e) { return tags.count(e) ? &tags[e] : nullptr; }
-template<> TransformComponent* Registry::getComponent(Entity e) { return transforms.count(e) ? &transforms[e] : nullptr; }
-template<> RigidbodyComponent* Registry::getComponent(Entity e) { return rigidbodies.count(e) ? &rigidbodies[e] : nullptr; }
-template<> ColliderComponent* Registry::getComponent(Entity e) { return colliders.count(e) ? &colliders[e] : nullptr; }
-template<> RenderComponent* Registry::getComponent(Entity e) { return renderables.count(e) ? &renderables[e] : nullptr; }
-template<> PlayerControlComponent* Registry::getComponent(Entity e) { return players.count(e) ? &players[e] : nullptr; }
-template<> GameStateComponent* Registry::getComponent(Entity e) { return gameStates.count(e) ? &gameStates[e] : nullptr; }
-template<> PowerUpComponent* Registry::getComponent(Entity e) { return powerUps.count(e) ? &powerUps[e] : nullptr; }
-
+    float halfW = bScale.x * 0.5f;
+    float halfH = bScale.y * 0.5f;
+    return (spherePos.x + r > bPos.x - halfW && spherePos.x - r < bPos.x + halfW &&
+            spherePos.y + r > bPos.y - halfH && spherePos.y - r < bPos.y + halfH);
+}
 // -------------------- ECS: Systems --------------------
-
+glm::vec3 reflectVector(const glm::vec3& v, const glm::vec3& normal) {
+    return v - 2.0f * glm::dot(v, normal) * normal;
+}
 // Helper pro kolize
 bool checkAABB(const glm::vec3& boxPos, const glm::vec3& boxScale, const glm::vec3& otherPos, const glm::vec3& otherScale) {
-    float hW1 = boxScale.x * 0.5f; float hH1 = boxScale.y * 0.5f;
-    float hW2 = otherScale.x * 0.5f; float hH2 = otherScale.y * 0.5f;
+    float hW1 = boxScale.x * 0.5f;
+    float hH1 = boxScale.y * 0.5f;
+    float hW2 = otherScale.x * 0.5f;
+    float hH2 = otherScale.y * 0.5f;
+
     return (boxPos.x + hW1 > otherPos.x - hW2 && boxPos.x - hW1 < otherPos.x + hW2 &&
             boxPos.y + hH1 > otherPos.y - hH2 && boxPos.y - hH1 < otherPos.y + hH2);
 }
@@ -537,6 +576,7 @@ public:
             float r = ballCol->radius;
             float halfW = targetTrans->scale.x * 0.5f;
             float halfH = targetTrans->scale.y * 0.5f;
+
             bool hit = (ballTrans->position.x + r > targetTrans->position.x - halfW &&
                         ballTrans->position.x - r < targetTrans->position.x + halfW &&
                         ballTrans->position.y + r > targetTrans->position.y - halfH &&
@@ -570,6 +610,7 @@ public:
             }
         }
         for (auto e : destroyedEntities) registry.destroyEntity(e);
+
     }
 
 private:
@@ -592,7 +633,7 @@ private:
         }
     }
 
-    glm::vec3 reflectVector(const glm::vec3& v, const glm::vec3& normal) { return v - 2.0f * glm::dot(v, normal) * normal; }
+
     void applySpeedup(glm::vec3& vel) {
         vel *= Config::Ball::SPEEDUP_FACTOR;
         if (glm::length(vel) > Config::Ball::MAX_SPEED) vel = glm::normalize(vel) * Config::Ball::MAX_SPEED;
@@ -711,6 +752,7 @@ public:
         // Malé info okno
         ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
         ImGui::Begin("GameInfo", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground);
+        ImGui::SetWindowFontScale(1.5f);
         ImGui::TextColored(ImVec4(1, 1, 0, 1), "Score: %d", registry.globalState.score);
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "Lives: %d", registry.globalState.lives);
         ImGui::End();
@@ -844,14 +886,8 @@ public:
 
             stats.update(dt);
             renderSystem.DrawUI(registry, stats,
-                                // 1. Callback pro Restart
-                                [&]() {
-                                    this->resetGame();
-                                },
-                                // 2. Callback pro Quit
-                                [&]() {
-                                    glfwSetWindowShouldClose(window.get(), true);
-                                }
+                                [&]() { this->resetGame();},
+                                [&]() {glfwSetWindowShouldClose(window.get(), true);}
                                 );
 
             glfwSwapBuffers(window.get());

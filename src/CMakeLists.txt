@@ -97,6 +97,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/objects/Sphere.h
     glbox/physics/Raycast.h
     glbox/DebugDraw.h
+    samples/objects/math.h
 
 )
 
