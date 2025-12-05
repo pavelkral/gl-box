@@ -308,8 +308,6 @@ public:
     std::unordered_map<Entity, RenderComponent> renderables;
     std::unordered_map<Entity, PlayerControlComponent> players;
     std::unordered_map<Entity, GameStateComponent> gameStates;
-
-    // Nové úložiště pro PowerUpy
     std::unordered_map<Entity, PowerUpComponent> powerUps;
 
     struct {
@@ -400,7 +398,7 @@ public:
     }
 };
 
-bool checkAABBcvb2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::vec3 &spherePos, float r) {
+bool colBoxCircle2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::vec3 &spherePos, float r) {
 
     float halfW = bScale.x * 0.5f;
     float halfH = bScale.y * 0.5f;
@@ -517,7 +515,7 @@ private:
 
 class PhysicsSystem {
 public:
-    // Potřebujeme referenci na meshe pro spawn powerupů
+
     Mesh* powerUpMesh = nullptr;
 
     void Update(Registry& registry, float dt) {
@@ -542,7 +540,6 @@ public:
         }
 
         if (!ballEntity || !ballState) return;
-
         // Logika před odpálením (Sticky ball)
         if (!ballState->launched) {
             for (auto& [pe, ptag] : registry.tags) {
@@ -557,10 +554,8 @@ public:
             }
             return;
         }
-
         // Pohyb míčku
         ballTrans->position += ballRb->velocity * dt;
-
         // Odraz od stěn (Walls)
         if (ballTrans->position.x <= Config::World::MIN_X) {
             ballTrans->position.x = Config::World::MIN_X;
@@ -612,6 +607,8 @@ public:
                     ballTrans->position.y = targetTrans->position.y + halfH + r + 0.05f;
                     applySpeedup(ballRb->velocity);
                 }
+
+                //fix tuneling
                 // --- BRICK (Zde je ta zásadní oprava) ---
                 else if (tag && tag->type == TagType::Brick) {
                     destroyedEntities.push_back(targetE);
@@ -738,10 +735,12 @@ public:
 };
 
 class RenderSystem {
+
     std::unique_ptr<Buffer> vboInstance;
     std::unique_ptr<Buffer> vboColor;
     std::vector<glm::mat4> matrices;
     std::vector<glm::vec4> colors;
+
 public:
     void Init() {
         size_t maxInstances = 2000;
@@ -764,9 +763,12 @@ public:
         glVertexAttribDivisor(5, 1);
         vao.unbind();
     }
+
     void Update(Registry& registry, Shader& shader) {
+
         shader.use();
         std::unordered_map<Mesh*, std::vector<Entity>> batch;
+
         for (auto& [e, rend] : registry.renderables) {
             if (!rend.visible || !rend.mesh) continue;
             batch[rend.mesh].push_back(e);
@@ -912,10 +914,9 @@ public:
 
     void run() {
 
-
-        const float FIXED_DT = 1.0f / 120.0f; // 120 Hz fyzika
+        //  FIXED dt use
+        const float FIXED_DT = 1.0f / 120.0f; // 120 Hz
         float accumulator = 0.0f;
-
         float lastTime = (float)glfwGetTime();
 
         while (!glfwWindowShouldClose(window.get())) {
@@ -933,10 +934,9 @@ public:
                 glfwGetKey(window.get(), GLFW_KEY_R) == GLFW_PRESS)
                 resetGame();
 
-            // INPUT běží FRAME TIME (plynulost)
             inputSystem.Update(registry, window.get(), frameTime);
 
-            // FYZIKA BĚŽÍ VE FIXED KROKU
+            //  FIXED dt use
             while (accumulator >= FIXED_DT) {
                 if (!registry.globalState.gameOver) {
                     physicsSystem.Update(registry, FIXED_DT);
@@ -946,7 +946,6 @@ public:
                 accumulator -= FIXED_DT;
             }
 
-            // === KAMERA UBO ===
             uboCamera->bind();
             glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
             glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
@@ -956,8 +955,6 @@ public:
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             renderSystem.Update(registry, *shader);
-
-            // STATISTIKY POŘÁD NA FRAME TIME
             stats.update(frameTime);
 
             renderSystem.DrawUI(
@@ -988,7 +985,6 @@ private:
         renderSystem.SetupVAO(*cubeMesh->vao);
         renderSystem.SetupVAO(*sphereMesh->vao);
 
-        // Předáme mesh pro powerupy do PhysicsSystem (aby mohl spawnovat)
         physicsSystem.powerUpMesh = cubeMesh.get();
     }
 
