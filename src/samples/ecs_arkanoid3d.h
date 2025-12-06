@@ -21,44 +21,44 @@
 
 // -------------------- Config --------------------
 namespace Config {
-namespace Camera{
-constexpr unsigned int SCREEN_WIDTH  = 1280;
-constexpr unsigned int SCREEN_HEIGHT = 720;
-inline constexpr glm::vec3 CAMERA_POS    = {0.0f, 8.0f, 95.0f};
-inline constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.15f, -1.0f};
-inline constexpr glm::vec3 CAMERA_UP     = {0.0f, 1.0f, 0.0f};
-}
-namespace World {
-constexpr float MIN_X = -60.0f;
-constexpr float MAX_X = 60.0f;
-constexpr float MIN_Y = -40.0f;
-constexpr float MAX_Y = 20.0f;
-}
-namespace Bricks {
-constexpr int ROWS = 10;
-constexpr int COLS = 10;
-constexpr float START_Y = 2.0f;
-inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
-}
-namespace Paddle {
-inline constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
-inline constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
-}
-namespace Ball {
-inline constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
-inline constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
-constexpr float RADIUS = 1.0f;
-constexpr float SPEEDUP_FACTOR = 1.15f;
-constexpr float MAX_SPEED = 45.0f;
-}
-namespace Stats {
-constexpr int INITIAL_LIVES = 3;
-constexpr int SCORE_PER_BRICK = 10;
-}
-namespace PowerUp {
-constexpr float FALL_SPEED = 15.0f;
-constexpr float DROP_CHANCE = 0.20f; // 20% šance
-constexpr float DURATION = 10.0f; // (Volitelné pro časové efekty)
+    namespace Camera{
+    constexpr unsigned int SCREEN_WIDTH  = 1920;
+    constexpr unsigned int SCREEN_HEIGHT = 1080;
+    inline constexpr glm::vec3 CAMERA_POS    = {0.0f, 8.0f, 95.0f};
+    inline constexpr glm::vec3 CAMERA_FRONT = {0.0f, -0.15f, -1.0f};
+    inline constexpr glm::vec3 CAMERA_UP     = {0.0f, 1.0f, 0.0f};
+    }
+    namespace World {
+    constexpr float MIN_X = -60.0f;
+    constexpr float MAX_X = 60.0f;
+    constexpr float MIN_Y = -40.0f;
+    constexpr float MAX_Y = 20.0f;
+    }
+    namespace Bricks {
+    constexpr int ROWS = 10;
+    constexpr int COLS = 10;
+    constexpr float START_Y = 2.0f;
+    inline constexpr glm::vec3 SCALE = {2.5f, 1.8f, 2.0f};
+    }
+    namespace Paddle {
+    inline constexpr glm::vec3 START_POS = {0.0f, -30.0f, 0.0f};
+    inline constexpr glm::vec3 SCALE = {10.0f, 2.0f, 2.0f};
+    }
+    namespace Ball {
+    inline constexpr glm::vec3 START_POS = {0.0f, -25.0f, 0.0f};
+    inline constexpr glm::vec3 START_VEL = {10.0f, 16.0f, 0.0f};
+    constexpr float RADIUS = 1.0f;
+    constexpr float SPEEDUP_FACTOR = 1.15f;
+    constexpr float MAX_SPEED = 45.0f;
+    }
+    namespace Stats {
+    constexpr int INITIAL_LIVES = 3;
+    constexpr int SCORE_PER_BRICK = 10;
+    }
+    namespace PowerUp {
+    constexpr float FALL_SPEED = 15.0f;
+    constexpr float DROP_CHANCE = 0.20f; // 20% šance
+    constexpr float DURATION = 10.0f; // (Volitelné pro časové efekty)
 }
 }
 
@@ -80,7 +80,7 @@ struct Stats {
         }
     }
     void drawUI(){
-        ImGui::SetNextWindowPos(ImVec2(1280 - 10, 10), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        ImGui::SetNextWindowPos(ImVec2((float)Config::Camera::SCREEN_WIDTH - 10, 10), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
         ImGui::Begin("Stats", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove);
         ImGui::SetWindowFontScale(1.5f);
@@ -257,6 +257,9 @@ void main() {
 }
 )glsl";
 
+
+//===========================================================================================================
+
 // -------------------- ECS: Components --------------------
 using Entity = std::uint32_t;
 const Entity NULL_ENTITY = 0;
@@ -350,7 +353,7 @@ public:
 
 
     template<typename T>
-    T& addComponent(Entity e, T component) {
+    T& addEntityComponent(Entity e, T component) {
 
         if constexpr (std::is_same_v<T, TagComponent>) {
             return tags[e] = component;
@@ -374,7 +377,7 @@ public:
     }
 
     template<typename T>
-    T* getComponent(Entity e) {
+    T* getEntityComponent(Entity e) {
 
         if constexpr (std::is_same_v<T, TagComponent>) {
             return tags.count(e) ? &tags.at(e) : nullptr;
@@ -397,7 +400,7 @@ public:
         }
     }
 };
-
+// Helpers pro kolize
 bool colBoxCircle2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::vec3 &spherePos, float r) {
 
     float halfW = bScale.x * 0.5f;
@@ -405,12 +408,12 @@ bool colBoxCircle2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::v
     return (spherePos.x + r > bPos.x - halfW && spherePos.x - r < bPos.x + halfW &&
             spherePos.y + r > bPos.y - halfH && spherePos.y - r < bPos.y + halfH);
 }
-// -------------------- ECS: Systems --------------------
+
 glm::vec3 reflectVector(const glm::vec3& v, const glm::vec3& normal) {
     return v - 2.0f * glm::dot(v, normal) * normal;
 }
-// Helper pro kolize
-bool checkAABB(const glm::vec3& boxPos, const glm::vec3& boxScale, const glm::vec3& otherPos, const glm::vec3& otherScale) {
+
+bool colBoxBox2D(const glm::vec3& boxPos, const glm::vec3& boxScale, const glm::vec3& otherPos, const glm::vec3& otherScale) {
     float hW1 = boxScale.x * 0.5f;
     float hH1 = boxScale.y * 0.5f;
     float hW2 = otherScale.x * 0.5f;
@@ -424,7 +427,7 @@ class InputSystem {
 public:
     void Update(Registry& registry, GLFWwindow* window, float dt) {
         for (auto& [entity, playerCtrl] : registry.players) {
-            auto* transform = registry.getComponent<TransformComponent>(entity);
+            auto* transform = registry.getEntityComponent<TransformComponent>(entity);
             if (!transform) continue;
 
             double xpos, ypos;
@@ -464,30 +467,26 @@ public:
         for(auto& [e, tag] : reg.tags) {
             if (tag.type == TagType::Paddle) {
                 paddle = e;
-                paddleTrans = reg.getComponent<TransformComponent>(e);
+                paddleTrans = reg.getEntityComponent<TransformComponent>(e);
                 break;
             }
         }
 
         std::vector<Entity> toDestroy;
-
         // 2. Projdi všechny PowerUpy
         for (auto& [e, pup] : reg.powerUps) {
-            auto* trans = reg.getComponent<TransformComponent>(e);
-
+            auto* trans = reg.getEntityComponent<TransformComponent>(e);
             // Pohyb dolů
             trans->position.y -= Config::PowerUp::FALL_SPEED * dt;
-
             // Kontrola kolize s pádlem
             if (paddleTrans) {
                 // Jednoduché AABB (PowerUp je malý box, pádlo je velký box)
-                if (checkAABB(paddleTrans->position, paddleTrans->scale, trans->position, trans->scale)) {
+                if (colBoxBox2D(paddleTrans->position, paddleTrans->scale, trans->position, trans->scale)) {
                     ApplyEffect(reg, paddle, pup.type);
                     toDestroy.push_back(e);
                     continue;
                 }
             }
-
             // Smazání pokud propadne
             if (trans->position.y < Config::World::MIN_Y) {
                 toDestroy.push_back(e);
@@ -500,7 +499,7 @@ public:
 private:
     void ApplyEffect(Registry& reg, Entity paddle, PowerUpType type) {
         if (type == PowerUpType::EnlargePaddle) {
-            auto* trans = reg.getComponent<TransformComponent>(paddle);
+            auto* trans = reg.getEntityComponent<TransformComponent>(paddle);
             if (trans) {
                 trans->scale.x *= 1.3f; // Zvětšení o 30%
                 // Omezíme maximální velikost
@@ -526,15 +525,14 @@ public:
         RigidbodyComponent* ballRb = nullptr;
         GameStateComponent* ballState = nullptr;
         ColliderComponent* ballCol = nullptr;
-
         // Najdeme míček
         for (auto& [e, tag] : registry.tags) {
             if (tag.type == TagType::Ball) {
                 ballEntity = e;
-                ballTrans = registry.getComponent<TransformComponent>(e);
-                ballRb = registry.getComponent<RigidbodyComponent>(e);
-                ballState = registry.getComponent<GameStateComponent>(e);
-                ballCol = registry.getComponent<ColliderComponent>(e);
+                ballTrans = registry.getEntityComponent<TransformComponent>(e);
+                ballRb = registry.getEntityComponent<RigidbodyComponent>(e);
+                ballState = registry.getEntityComponent<GameStateComponent>(e);
+                ballCol = registry.getEntityComponent<ColliderComponent>(e);
                 break;
             }
         }
@@ -544,7 +542,7 @@ public:
         if (!ballState->launched) {
             for (auto& [pe, ptag] : registry.tags) {
                 if (ptag.type == TagType::Paddle) {
-                    auto* pTrans = registry.getComponent<TransformComponent>(pe);
+                    auto* pTrans = registry.getEntityComponent<TransformComponent>(pe);
                     if (pTrans) {
                         ballTrans->position.x = pTrans->position.x;
                         ballTrans->position.y = pTrans->position.y + pTrans->scale.y * 0.5f + ballCol->radius + 0.2f;
@@ -569,15 +567,13 @@ public:
             ballTrans->position.y = Config::World::MAX_Y;
             ballRb->velocity.y *= -1.0f;
         }
-
         // Kolize s entitami (Paddle, Bricks)
         std::vector<Entity> destroyedEntities;
-
         for (auto& [targetE, targetCol] : registry.colliders) {
             if (targetE == ballEntity) continue;
             if (registry.powerUps.count(targetE)) continue; // Ignorujeme powerupy
 
-            auto* targetTrans = registry.getComponent<TransformComponent>(targetE);
+            auto* targetTrans = registry.getEntityComponent<TransformComponent>(targetE);
             if (!targetTrans) continue;
 
             // Výpočet AABB polovičních velikostí
@@ -592,7 +588,7 @@ public:
                         ballTrans->position.y - r < targetTrans->position.y + halfH);
 
             if (hit) {
-                TagComponent* tag = registry.getComponent<TagComponent>(targetE);
+                TagComponent* tag = registry.getEntityComponent<TagComponent>(targetE);
 
                 // --- PADDLE ---
                 if (tag && tag->type == TagType::Paddle) {
@@ -600,7 +596,7 @@ public:
                     ballRb->velocity.y = abs(ballRb->velocity.y); // Vždy nahoru
 
                     // Faleš
-                    auto* playerCtrl = registry.getComponent<PlayerControlComponent>(targetE);
+                    auto* playerCtrl = registry.getEntityComponent<PlayerControlComponent>(targetE);
                     if (playerCtrl) ballRb->velocity.x += playerCtrl->velocityX * 0.12f;
 
                     // Vytlačení nahoru, aby se nezasekl
@@ -614,21 +610,16 @@ public:
                     destroyedEntities.push_back(targetE);
                     registry.globalState.score += Config::Stats::SCORE_PER_BRICK;
                     TrySpawnPowerUp(registry, targetTrans->position);
-
                     // --- OPRAVA KOLIZÍ: Penetration Resolution ---
-
                     // 1. Vypočítáme, jak hluboko je míček v cihle v obou osách
                     float deltaX = ballTrans->position.x - targetTrans->position.x;
                     float deltaY = ballTrans->position.y - targetTrans->position.y;
-
                     // Hloubka průniku (Minkowski Sum)
                     float intersectX = abs(deltaX) - (halfW + r);
                     float intersectY = abs(deltaY) - (halfH + r);
-
                     // Pokud je intersectX větší (blíže k 0, protože jsou záporná čísla při kolizi),
                     // znamená to, že průnik v ose X je MENŠÍ než v ose Y.
                     // Tedy: narazili jsme ze strany.
-
                     if (intersectX > intersectY) {
                         // Kolize ze strany (Horizontální)
                         // Vytlačíme míček ven v ose X
@@ -636,7 +627,6 @@ public:
                             ballTrans->position.x = targetTrans->position.x + halfW + r;
                         else
                             ballTrans->position.x = targetTrans->position.x - halfW - r;
-
                         ballRb->velocity.x *= -1.0f; // Odraz X
                     } else {
                         // Kolize z vrchu/spodu (Vertikální)
@@ -648,7 +638,6 @@ public:
 
                         ballRb->velocity.y *= -1.0f; // Odraz Y
                     }
-
                     applySpeedup(ballRb->velocity);
 
                     break;
@@ -669,10 +658,10 @@ private:
                                   ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f)
                                   : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 
-            reg.addComponent(pup, TagComponent{TagType::PowerUp});
-            reg.addComponent(pup, TransformComponent{pos, glm::vec3(2.0f, 0.8f, 1.0f)}); // Plochý obdélník
-            reg.addComponent(pup, RenderComponent{powerUpMesh, color});
-            reg.addComponent(pup, PowerUpComponent{type});
+            reg.addEntityComponent(pup, TagComponent{TagType::PowerUp});
+            reg.addEntityComponent(pup, TransformComponent{pos, glm::vec3(2.0f, 0.8f, 1.0f)}); // Plochý obdélník
+            reg.addEntityComponent(pup, RenderComponent{powerUpMesh, color});
+            reg.addEntityComponent(pup, PowerUpComponent{type});
             // Poznámka: PowerUp nepotřebuje Rigidbody, hýbe s ním PowerUpSystem
             // Ani ColliderComponent pro míček, kolize řeší PowerUpSystem zvlášť
         }
@@ -692,7 +681,7 @@ public:
         for (auto& [e, tag] : registry.tags) if (tag.type == TagType::Ball) ballEntity = e;
 
         if (ballEntity != NULL_ENTITY) {
-            auto* trans = registry.getComponent<TransformComponent>(ballEntity);
+            auto* trans = registry.getEntityComponent<TransformComponent>(ballEntity);
             if (trans && trans->position.y < Config::World::MIN_Y) {
                 registry.globalState.lives--;
                 if (registry.globalState.lives <= 0) {
@@ -708,8 +697,8 @@ public:
     }
 
     void resetRound(Registry& registry, Entity ball) {
-        auto* ballState = registry.getComponent<GameStateComponent>(ball);
-        auto* ballRb = registry.getComponent<RigidbodyComponent>(ball);
+        auto* ballState = registry.getEntityComponent<GameStateComponent>(ball);
+        auto* ballRb = registry.getEntityComponent<RigidbodyComponent>(ball);
 
         if (ballState) ballState->launched = false;
         if (ballRb) ballRb->velocity = Config::Ball::START_VEL;
@@ -717,12 +706,12 @@ public:
         // Reset Paddle Position and Scale
         for(auto& [e, tag] : registry.tags) {
             if(tag.type == TagType::Paddle) {
-                auto* pt = registry.getComponent<TransformComponent>(e);
+                auto* pt = registry.getEntityComponent<TransformComponent>(e);
                 if(pt) {
                     pt->position = Config::Paddle::START_POS;
                     pt->scale = Config::Paddle::SCALE; // Reset velikosti při smrti
                 }
-                auto* pc = registry.getComponent<PlayerControlComponent>(e);
+                auto* pc = registry.getEntityComponent<PlayerControlComponent>(e);
                 if(pc) { pc->velocityX = 0; pc->lastX = Config::Paddle::START_POS.x; }
             }
         }
@@ -776,8 +765,8 @@ public:
         for (auto& [mesh, entities] : batch) {
             matrices.clear(); colors.clear();
             for (Entity e : entities) {
-                auto* trans = registry.getComponent<TransformComponent>(e);
-                auto* rend = registry.getComponent<RenderComponent>(e);
+                auto* trans = registry.getEntityComponent<TransformComponent>(e);
+                auto* rend = registry.getEntityComponent<RenderComponent>(e);
                 if (trans && rend) {
                     matrices.push_back(trans->getMatrix());
                     colors.push_back(rend->color);
@@ -923,9 +912,7 @@ public:
             float now = (float)glfwGetTime();
             float frameTime = std::min(now - lastTime, 0.05f); // ochrana proti SPIRAL OF DEATH
             lastTime = now;
-
             accumulator += frameTime;
-
             glfwPollEvents();
             if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
                 glfwSetWindowShouldClose(window.get(), true);
@@ -935,7 +922,6 @@ public:
                 resetGame();
 
             inputSystem.Update(registry, window.get(), frameTime);
-
             //  FIXED dt use
             while (accumulator >= FIXED_DT) {
                 if (!registry.globalState.gameOver) {
@@ -945,18 +931,14 @@ public:
                 }
                 accumulator -= FIXED_DT;
             }
-
             uboCamera->bind();
             glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));
             glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(proj));
             uboCamera->unbind();
-
             glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
             renderSystem.Update(registry, *shader);
             stats.update(frameTime);
-
             renderSystem.DrawUI(
                 registry,
                 stats,
@@ -984,7 +966,6 @@ private:
         renderSystem.Init();
         renderSystem.SetupVAO(*cubeMesh->vao);
         renderSystem.SetupVAO(*sphereMesh->vao);
-
         physicsSystem.powerUpMesh = cubeMesh.get();
     }
 
@@ -994,20 +975,20 @@ private:
 
         // Paddle
         Entity paddle = registry.createEntity();
-        registry.addComponent(paddle, TagComponent{TagType::Paddle});
-        registry.addComponent(paddle, TransformComponent{Config::Paddle::START_POS, Config::Paddle::SCALE});
-        registry.addComponent(paddle, RenderComponent{cubeMesh.get(), glm::vec4(0.3f, 0.8f, 0.3f, 1.0f)});
-        registry.addComponent(paddle, ColliderComponent{ColliderComponent::Box});
-        registry.addComponent(paddle, PlayerControlComponent{});
+        registry.addEntityComponent(paddle, TagComponent{TagType::Paddle});
+        registry.addEntityComponent(paddle, TransformComponent{Config::Paddle::START_POS, Config::Paddle::SCALE});
+        registry.addEntityComponent(paddle, RenderComponent{cubeMesh.get(), glm::vec4(0.3f, 0.8f, 0.3f, 1.0f)});
+        registry.addEntityComponent(paddle, ColliderComponent{ColliderComponent::Box});
+        registry.addEntityComponent(paddle, PlayerControlComponent{});
 
         // Ball
         Entity ball = registry.createEntity();
-        registry.addComponent(ball, TagComponent{TagType::Ball});
-        registry.addComponent(ball, TransformComponent{Config::Ball::START_POS, glm::vec3(Config::Ball::RADIUS)});
-        registry.addComponent(ball, RigidbodyComponent{Config::Ball::START_VEL});
-        registry.addComponent(ball, RenderComponent{sphereMesh.get(), glm::vec4(1.0f, 0.2f, 0.2f, 1.0f)});
-        registry.addComponent(ball, ColliderComponent{ColliderComponent::Sphere, Config::Ball::RADIUS});
-        registry.addComponent(ball, GameStateComponent{false});
+        registry.addEntityComponent(ball, TagComponent{TagType::Ball});
+        registry.addEntityComponent(ball, TransformComponent{Config::Ball::START_POS, glm::vec3(Config::Ball::RADIUS)});
+        registry.addEntityComponent(ball, RigidbodyComponent{Config::Ball::START_VEL});
+        registry.addEntityComponent(ball, RenderComponent{sphereMesh.get(), glm::vec4(1.0f, 0.2f, 0.2f, 1.0f)});
+        registry.addEntityComponent(ball, ColliderComponent{ColliderComponent::Sphere, Config::Ball::RADIUS});
+        registry.addEntityComponent(ball, GameStateComponent{false});
 
         // Bricks
         int rows = Config::Bricks::ROWS;
@@ -1027,10 +1008,10 @@ private:
                     0.0f
                 };
                 glm::vec3 scale = {brickWidth, brickHeight, Config::Bricks::SCALE.z};
-                registry.addComponent(brick, TagComponent{TagType::Brick});
-                registry.addComponent(brick, TransformComponent{pos, scale});
-                registry.addComponent(brick, RenderComponent{cubeMesh.get(), Random::RandomColor()});
-                registry.addComponent(brick, ColliderComponent{ColliderComponent::Box});
+                registry.addEntityComponent(brick, TagComponent{TagType::Brick});
+                registry.addEntityComponent(brick, TransformComponent{pos, scale});
+                registry.addEntityComponent(brick, RenderComponent{cubeMesh.get(), Random::RandomColor()});
+                registry.addEntityComponent(brick, ColliderComponent{ColliderComponent::Box});
             }
         }
     }
