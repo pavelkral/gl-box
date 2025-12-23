@@ -87,9 +87,9 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     samples/geometryshader.h
     samples/ecs.h
 
-    samples/ecs_arkanoid.h
-    samples/ecs_arkanoid3d.h
-    samples/oop_arkanoid3d.h
+    samples/arkanoid/ecs_arkanoid.h
+    samples/arkanoid/ecs_arkanoid3d.h
+    samples/arkanoid/oop_arkanoid3d.h
 
     samples/tesselation.h
 

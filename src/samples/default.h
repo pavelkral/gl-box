@@ -119,6 +119,7 @@ int main() {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+    glfwSwapInterval(0);
     glEnable(GL_DEPTH_TEST);
 
     std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;

@@ -162,7 +162,7 @@ int main() {
     Shader gBufferShader(gBufferVertexShaderSource, gBufferFragmentShaderSource,true);
     Shader lightingShader(lightingVertexShaderSource, lightingFragmentShaderSource,true);
 
-    unsigned int containerTexture = Loader::Trexture::loadTexture("assets/textures/floor.png");
+    unsigned int containerTexture =Trexture::loadTexture("assets/textures/floor.png");
 
     // Vytvoření G-Buffer FBO (beze změny)
     unsigned int gBuffer;
