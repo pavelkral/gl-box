@@ -298,8 +298,8 @@ struct RenderComponent {
 struct PlayerControlComponent { float lastX = 0.0f; float velocityX = 0.0f; };
 struct GameStateComponent { bool launched = false; };
 
-// -------------------- ECS: Registry --------------------
-class Registry {
+// -------------------- ECS: EntityManager --------------------
+class EntityManager {
 public:
     std::vector<Entity> entities;
     std::uint32_t nextId = 1;
@@ -400,6 +400,7 @@ public:
         }
     }
 };
+
 // Helpers pro kolize
 bool colBoxCircle2D(const glm::vec3 &bPos, const glm::vec3 &bScale, const glm::vec3 &spherePos, float r) {
 
@@ -425,7 +426,7 @@ bool colBoxBox2D(const glm::vec3& boxPos, const glm::vec3& boxScale, const glm::
 
 class InputSystem {
 public:
-    void Update(Registry& registry, GLFWwindow* window, float dt) {
+    void Update(EntityManager& registry, GLFWwindow* window, float dt) {
         for (auto& [entity, playerCtrl] : registry.players) {
             auto* transform = registry.getEntityComponent<TransformComponent>(entity);
             if (!transform) continue;
@@ -460,7 +461,7 @@ public:
 // --- NOVÝ SYSTÉM PRO POWER-UPY ---
 class PowerUpSystem {
 public:
-    void Update(Registry& reg, float dt) {
+    void Update(EntityManager& reg, float dt) {
         // 1. Najdi pádlo (pro kolizi)
         Entity paddle = NULL_ENTITY;
         TransformComponent* paddleTrans = nullptr;
@@ -497,7 +498,7 @@ public:
     }
 
 private:
-    void ApplyEffect(Registry& reg, Entity paddle, PowerUpType type) {
+    void ApplyEffect(EntityManager& reg, Entity paddle, PowerUpType type) {
         if (type == PowerUpType::EnlargePaddle) {
             auto* trans = reg.getEntityComponent<TransformComponent>(paddle);
             if (trans) {
@@ -517,8 +518,8 @@ public:
 
     Mesh* powerUpMesh = nullptr;
 
-    void Update(Registry& registry, float dt) {
-        if (registry.globalState.gameOver) return;
+    void Update(EntityManager& manager, float dt) {
+        if (manager.globalState.gameOver) return;
 
         Entity ballEntity = NULL_ENTITY;
         TransformComponent* ballTrans = nullptr;
@@ -526,13 +527,13 @@ public:
         GameStateComponent* ballState = nullptr;
         ColliderComponent* ballCol = nullptr;
         // Najdeme míček
-        for (auto& [e, tag] : registry.tags) {
+        for (auto& [e, tag] : manager.tags) {
             if (tag.type == TagType::Ball) {
                 ballEntity = e;
-                ballTrans = registry.getEntityComponent<TransformComponent>(e);
-                ballRb = registry.getEntityComponent<RigidbodyComponent>(e);
-                ballState = registry.getEntityComponent<GameStateComponent>(e);
-                ballCol = registry.getEntityComponent<ColliderComponent>(e);
+                ballTrans = manager.getEntityComponent<TransformComponent>(e);
+                ballRb = manager.getEntityComponent<RigidbodyComponent>(e);
+                ballState = manager.getEntityComponent<GameStateComponent>(e);
+                ballCol = manager.getEntityComponent<ColliderComponent>(e);
                 break;
             }
         }
@@ -540,9 +541,9 @@ public:
         if (!ballEntity || !ballState) return;
         // Logika před odpálením (Sticky ball)
         if (!ballState->launched) {
-            for (auto& [pe, ptag] : registry.tags) {
+            for (auto& [pe, ptag] : manager.tags) {
                 if (ptag.type == TagType::Paddle) {
-                    auto* pTrans = registry.getEntityComponent<TransformComponent>(pe);
+                    auto* pTrans = manager.getEntityComponent<TransformComponent>(pe);
                     if (pTrans) {
                         ballTrans->position.x = pTrans->position.x;
                         ballTrans->position.y = pTrans->position.y + pTrans->scale.y * 0.5f + ballCol->radius + 0.2f;
@@ -569,11 +570,11 @@ public:
         }
         // Kolize s entitami (Paddle, Bricks)
         std::vector<Entity> destroyedEntities;
-        for (auto& [targetE, targetCol] : registry.colliders) {
+        for (auto& [targetE, targetCol] : manager.colliders) {
             if (targetE == ballEntity) continue;
-            if (registry.powerUps.count(targetE)) continue; // Ignorujeme powerupy
+            if (manager.powerUps.count(targetE)) continue; // Ignorujeme powerupy
 
-            auto* targetTrans = registry.getEntityComponent<TransformComponent>(targetE);
+            auto* targetTrans = manager.getEntityComponent<TransformComponent>(targetE);
             if (!targetTrans) continue;
 
             // Výpočet AABB polovičních velikostí
@@ -588,7 +589,7 @@ public:
                         ballTrans->position.y - r < targetTrans->position.y + halfH);
 
             if (hit) {
-                TagComponent* tag = registry.getEntityComponent<TagComponent>(targetE);
+                TagComponent* tag = manager.getEntityComponent<TagComponent>(targetE);
 
                 // --- PADDLE ---
                 if (tag && tag->type == TagType::Paddle) {
@@ -596,7 +597,7 @@ public:
                     ballRb->velocity.y = abs(ballRb->velocity.y); // Vždy nahoru
 
                     // Faleš
-                    auto* playerCtrl = registry.getEntityComponent<PlayerControlComponent>(targetE);
+                    auto* playerCtrl = manager.getEntityComponent<PlayerControlComponent>(targetE);
                     if (playerCtrl) ballRb->velocity.x += playerCtrl->velocityX * 0.12f;
 
                     // Vytlačení nahoru, aby se nezasekl
@@ -608,8 +609,8 @@ public:
                 // --- BRICK (Zde je ta zásadní oprava) ---
                 else if (tag && tag->type == TagType::Brick) {
                     destroyedEntities.push_back(targetE);
-                    registry.globalState.score += Config::Stats::SCORE_PER_BRICK;
-                    TrySpawnPowerUp(registry, targetTrans->position);
+                    manager.globalState.score += Config::Stats::SCORE_PER_BRICK;
+                    TrySpawnPowerUp(manager, targetTrans->position);
                     // --- OPRAVA KOLIZÍ: Penetration Resolution ---
                     // 1. Vypočítáme, jak hluboko je míček v cihle v obou osách
                     float deltaX = ballTrans->position.x - targetTrans->position.x;
@@ -645,12 +646,12 @@ public:
             }
         }
 
-        for (auto e : destroyedEntities) registry.destroyEntity(e);
+        for (auto e : destroyedEntities) manager.destroyEntity(e);
     }
 private:
-    void TrySpawnPowerUp(Registry& reg, glm::vec3 pos) {
+    void TrySpawnPowerUp(EntityManager& manager, glm::vec3 pos) {
         if (Random::Float(0.0f, 1.0f) < Config::PowerUp::DROP_CHANCE) {
-            Entity pup = reg.createEntity();
+            Entity pup = manager.createEntity();
             PowerUpType type = (Random::Float(0.0f, 1.0f) > 0.5f) ? PowerUpType::EnlargePaddle : PowerUpType::ExtraLife;
 
             // Barva: Zlutá (Paddle) nebo Zelená (Life)
@@ -658,10 +659,10 @@ private:
                                   ? glm::vec4(1.0f, 1.0f, 0.0f, 1.0f)
                                   : glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 
-            reg.addEntityComponent(pup, TagComponent{TagType::PowerUp});
-            reg.addEntityComponent(pup, TransformComponent{pos, glm::vec3(2.0f, 0.8f, 1.0f)}); // Plochý obdélník
-            reg.addEntityComponent(pup, RenderComponent{powerUpMesh, color});
-            reg.addEntityComponent(pup, PowerUpComponent{type});
+            manager.addEntityComponent(pup, TagComponent{TagType::PowerUp});
+            manager.addEntityComponent(pup, TransformComponent{pos, glm::vec3(2.0f, 0.8f, 1.0f)}); // Plochý obdélník
+            manager.addEntityComponent(pup, RenderComponent{powerUpMesh, color});
+            manager.addEntityComponent(pup, PowerUpComponent{type});
             // Poznámka: PowerUp nepotřebuje Rigidbody, hýbe s ním PowerUpSystem
             // Ani ColliderComponent pro míček, kolize řeší PowerUpSystem zvlášť
         }
@@ -676,7 +677,7 @@ private:
 
 class GameLogicSystem {
 public:
-    void Update(Registry& registry) {
+    void Update(EntityManager& registry) {
         Entity ballEntity = NULL_ENTITY;
         for (auto& [e, tag] : registry.tags) if (tag.type == TagType::Ball) ballEntity = e;
 
@@ -696,7 +697,7 @@ public:
         if (!anyBrick) { registry.globalState.gameWon = true; registry.globalState.gameOver = true; }
     }
 
-    void resetRound(Registry& registry, Entity ball) {
+    void resetRound(EntityManager& registry, Entity ball) {
         auto* ballState = registry.getEntityComponent<GameStateComponent>(ball);
         auto* ballRb = registry.getEntityComponent<RigidbodyComponent>(ball);
 
@@ -753,7 +754,7 @@ public:
         vao.unbind();
     }
 
-    void Update(Registry& registry, Shader& shader) {
+    void Update(EntityManager& registry, Shader& shader) {
 
         shader.use();
         std::unordered_map<Mesh*, std::vector<Entity>> batch;
@@ -780,7 +781,7 @@ public:
         }
     }
 
-    void DrawUI(Registry& registry, Stats& stats, std::function<void()> onRestart, std::function<void()> onQuit) {
+    void DrawUI(EntityManager& registry, Stats& stats, std::function<void()> onRestart, std::function<void()> onQuit) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -856,7 +857,7 @@ class Game {
     std::unique_ptr<Mesh> sphereMesh;
     std::unique_ptr<Buffer> uboCamera;
 
-    Registry registry;
+    EntityManager manager;
     InputSystem inputSystem;
     PhysicsSystem physicsSystem;
     RenderSystem renderSystem;
@@ -917,17 +918,17 @@ public:
             if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
                 glfwSetWindowShouldClose(window.get(), true);
 
-            if (registry.globalState.gameOver &&
+            if (manager.globalState.gameOver &&
                 glfwGetKey(window.get(), GLFW_KEY_R) == GLFW_PRESS)
                 resetGame();
 
-            inputSystem.Update(registry, window.get(), frameTime);
+            inputSystem.Update(manager, window.get(), frameTime);
             //  FIXED dt use
             while (accumulator >= FIXED_DT) {
-                if (!registry.globalState.gameOver) {
-                    physicsSystem.Update(registry, FIXED_DT);
-                    powerUpSystem.Update(registry, FIXED_DT);
-                    logicSystem.Update(registry);
+                if (!manager.globalState.gameOver) {
+                    physicsSystem.Update(manager, FIXED_DT);
+                    powerUpSystem.Update(manager, FIXED_DT);
+                    logicSystem.Update(manager);
                 }
                 accumulator -= FIXED_DT;
             }
@@ -937,10 +938,10 @@ public:
             uboCamera->unbind();
             glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            renderSystem.Update(registry, *shader);
+            renderSystem.Update(manager, *shader);
             stats.update(frameTime);
             renderSystem.DrawUI(
-                registry,
+                manager,
                 stats,
                 [&]() { this->resetGame(); },
                 [&]() { glfwSetWindowShouldClose(window.get(), true); }
@@ -970,25 +971,25 @@ private:
     }
 
     void resetGame() {
-        registry.clear();
-        registry.globalState = {0, Config::Stats::INITIAL_LIVES, false, false};
+        manager.clear();
+        manager.globalState = {0, Config::Stats::INITIAL_LIVES, false, false};
 
         // Paddle
-        Entity paddle = registry.createEntity();
-        registry.addEntityComponent(paddle, TagComponent{TagType::Paddle});
-        registry.addEntityComponent(paddle, TransformComponent{Config::Paddle::START_POS, Config::Paddle::SCALE});
-        registry.addEntityComponent(paddle, RenderComponent{cubeMesh.get(), glm::vec4(0.3f, 0.8f, 0.3f, 1.0f)});
-        registry.addEntityComponent(paddle, ColliderComponent{ColliderComponent::Box});
-        registry.addEntityComponent(paddle, PlayerControlComponent{});
+        Entity paddle = manager.createEntity();
+        manager.addEntityComponent(paddle, TagComponent{TagType::Paddle});
+        manager.addEntityComponent(paddle, TransformComponent{Config::Paddle::START_POS, Config::Paddle::SCALE});
+        manager.addEntityComponent(paddle, RenderComponent{cubeMesh.get(), glm::vec4(0.3f, 0.8f, 0.3f, 1.0f)});
+        manager.addEntityComponent(paddle, ColliderComponent{ColliderComponent::Box});
+        manager.addEntityComponent(paddle, PlayerControlComponent{});
 
         // Ball
-        Entity ball = registry.createEntity();
-        registry.addEntityComponent(ball, TagComponent{TagType::Ball});
-        registry.addEntityComponent(ball, TransformComponent{Config::Ball::START_POS, glm::vec3(Config::Ball::RADIUS)});
-        registry.addEntityComponent(ball, RigidbodyComponent{Config::Ball::START_VEL});
-        registry.addEntityComponent(ball, RenderComponent{sphereMesh.get(), glm::vec4(1.0f, 0.2f, 0.2f, 1.0f)});
-        registry.addEntityComponent(ball, ColliderComponent{ColliderComponent::Sphere, Config::Ball::RADIUS});
-        registry.addEntityComponent(ball, GameStateComponent{false});
+        Entity ball = manager.createEntity();
+        manager.addEntityComponent(ball, TagComponent{TagType::Ball});
+        manager.addEntityComponent(ball, TransformComponent{Config::Ball::START_POS, glm::vec3(Config::Ball::RADIUS)});
+        manager.addEntityComponent(ball, RigidbodyComponent{Config::Ball::START_VEL});
+        manager.addEntityComponent(ball, RenderComponent{sphereMesh.get(), glm::vec4(1.0f, 0.2f, 0.2f, 1.0f)});
+        manager.addEntityComponent(ball, ColliderComponent{ColliderComponent::Sphere, Config::Ball::RADIUS});
+        manager.addEntityComponent(ball, GameStateComponent{false});
 
         // Bricks
         int rows = Config::Bricks::ROWS;
@@ -1001,17 +1002,17 @@ private:
 
         for (int r = 0; r < rows; ++r) {
             for (int c = 0; c < cols; ++c) {
-                Entity brick = registry.createEntity();
+                Entity brick = manager.createEntity();
                 glm::vec3 pos = {
                     startX + c * (brickWidth + spacingX),
                     Config::Bricks::START_Y + r * (brickHeight + spacingX),
                     0.0f
                 };
                 glm::vec3 scale = {brickWidth, brickHeight, Config::Bricks::SCALE.z};
-                registry.addEntityComponent(brick, TagComponent{TagType::Brick});
-                registry.addEntityComponent(brick, TransformComponent{pos, scale});
-                registry.addEntityComponent(brick, RenderComponent{cubeMesh.get(), Random::RandomColor()});
-                registry.addEntityComponent(brick, ColliderComponent{ColliderComponent::Box});
+                manager.addEntityComponent(brick, TagComponent{TagType::Brick});
+                manager.addEntityComponent(brick, TransformComponent{pos, scale});
+                manager.addEntityComponent(brick, RenderComponent{cubeMesh.get(), Random::RandomColor()});
+                manager.addEntityComponent(brick, ColliderComponent{ColliderComponent::Box});
             }
         }
     }

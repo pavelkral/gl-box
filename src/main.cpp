@@ -1,6 +1,6 @@
-//#include "samples/default.h"
+#include "samples/default.h"
  //#include "samples/oop_arkanoid3d.h"
-#include "samples/ecs_arkanoid3d.h"//.h"
+//#include "samples/ecs_arkanoid3d.h"//.h"
 //#include "samples/deferred.h"
 ///#include "samples/defered.h"
 //#include "samples/reflection.h"
