@@ -7,7 +7,7 @@ CMakeLists.text.user
 CMakeCache.txt
 CMakeFiles/
 bin/
-
+src/samples/old/
 cmake_install.cmake
 install_manifest.txt
 
