@@ -4,6 +4,7 @@ CMakeLists.text.user
 **/build/
 **/out/
 .vs/
+.qtcreator/
 CMakeCache.txt
 CMakeFiles/
 bin/
