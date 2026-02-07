@@ -98,6 +98,7 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
     src/glbox/physics/Raycast.h
     src/glbox/DebugDraw.h
     src/samples/objects/math.h
+    src/glbox/physics/Physics.h
 
 )
 

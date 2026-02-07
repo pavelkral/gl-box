@@ -26,66 +26,13 @@
 #include "../glbox/HdriSky.h"
 #include "../glbox/geometry/Geometry.h"
 #include "../glbox/physics/Raycast.h"
+#include "../glbox/physics/Physics.h"
 #include "../glbox/DebugDraw.h"
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
-
-bool PerformRaycast(const Ray& ray,
-                    const Octree& sceneOctree,
-                    const std::map<StaticMesh*, glm::mat4>& modelMatrices,
-                    RaycastHit& outHit)
-{
-    outHit.hit = false;
-    outHit.distance = FLT_MAX;
-    outHit.object = nullptr;
-
-    // 1. Získáme ze stromu jen relevantní objekty
-    std::vector<StaticMesh*> potentialHits;
-    sceneOctree.Query(ray, potentialHits);
-
-    if (potentialHits.empty()) {
-        return false;
-    }
-
-    // 2. Teď provedeme test "brute-force", ALE UŽ JEN NA TĚCH PÁR KANDIDÁTECH
-    for (StaticMesh* mesh : potentialHits) {
-
-        // Bezpečné nalezení matice v mapě
-        auto it = modelMatrices.find(mesh);
-        if (it == modelMatrices.end()) {
-            // Tento mesh nemá z nějakého důvodu matici v mapě, přeskočíme ho
-            std::cerr << "err: Raycast not find matrix for mesh!" << std::endl;
-            continue;
-        }
-
-        // Použijeme matici z parametru
-        const glm::mat4& modelMatrix = it->second;
-
-        // Znovu spočítáme world AABB pro přesný test
-        // (Alternativa: Octree by mohl vracet i AABB, se kterým byl objekt vložen)
-        BoxCollider worldAABB = mesh->localAABB.GetTransformed(modelMatrix);
-
-        float t; // Vzdálenost zásahu
-        if (worldAABB.Intersects(ray, t)) {
-
-            // TODO: Zde by měl být přesný test proti trojúhelníkům.
-            // Prozatím bereme zásah AABB jako finální zásah.
-
-            // 3. Je tento zásah blíž než ten předchozí?
-            if (t < outHit.distance) {
-                outHit.hit = true;
-                outHit.distance = t;
-                outHit.point = ray.origin + ray.direction * t;
-                outHit.object = mesh;
-            }
-        }
-    }
-
-    return outHit.hit;
-}
 
 
 const unsigned int SCR_WIDTH = 1920;
@@ -252,20 +199,20 @@ int main() {
     model.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     model.transform.scale    = glm::vec3(0.01f);
     SceneObject soldier1(&model);
-  //  ModelFBX model1("assets/models/USMarines/usmarine.FBX");
-    ModelFBX model1("assets/models/mecha/scene.gltf");
-    //unsigned int Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
-  //  unsigned int m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
-      unsigned int m16 = Trexture::loadTexture("assets/models/heli/heli.jpg");
+    ModelFBX model1("assets/models/USMarines/usmarine.FBX");
+  //  ModelFBX model1("assets/models/mecha/scene.gltf");
+    unsigned int Marine =Trexture::loadTexture("assets/models/USMarines/usmarine-01.jpg");
+    unsigned int m16 = Trexture::loadTexture("assets/models/USMarines/m16.jpg");
+  //    unsigned int m16 = Trexture::loadTexture("assets/models/heli/heli.jpg");
     model1.setFallbackAlbedo(0.7f, 0.7f, 0.75f);
     model1.setFallbackMetallic(0.1f);
     model1.setFallbackSmoothness(0.3f);
-    model1.transform.position = glm::vec3(-3.0f, 3.5f, 0.0f);
+    model1.transform.position = glm::vec3(-3.0f, -0.5f, 0.0f);
     // model1.transform.rotation = glm::vec3(90.0f, 180.0f, 180.0f);
-  //  model1.transform.rotation = glm::vec3(-90.0f, 180.0f, 0.0f);
-   // model1.transform.scale    = glm::vec3(0.012f);
-   // model1.setAlbedoTexture(m16,1);
-  //  model1.setAlbedoTexture(Marine,0);
+    model1.transform.rotation = glm::vec3(-90.0f, 180.0f, 0.0f);
+    model1.transform.scale    = glm::vec3(0.012f);
+    model1.setAlbedoTexture(m16,1);
+    model1.setAlbedoTexture(Marine,0);
  //      model1.setAlbedoTexture(m16,1);
     SceneObject soldier(&model);
     //for(int i=0;i<model.numAnimations();++i) std::cout << i << " anim " <<model.animationName(i)  << std::endl;
@@ -322,8 +269,8 @@ int main() {
     std::cout << "Initial Octree built!" << std::endl;
     DebugDraw debugDrawer;
 
-    //===========================================================================main loop
-    //==================================================================================
+    ///===========================================================================main loop
+    ///==================================================================================
 
     while (!glfwWindowShouldClose(window)) {
 
@@ -387,17 +334,57 @@ int main() {
             lastUpdate = now;
         }
 
-        // --- 2. Update World AABB and rebuild Octree for dynamic/changing objects ---
-        // Recalculate new World AABBs for all meshes (using the current localAABB)
+        // ===============================================================================================
+        // !OPRAVA: SYNCHRONIZACE FYZIKY S VYKRESLOVÁNÍM
+        // ===============================================================================================
+
+        // Musíme vytvořit helper lambda funkci nebo to rozepsat ručně pro převod Transform -> Mat4
+        auto createModelMatrix = [](const glm::vec3& pos, const glm::vec3& rot, const glm::vec3& scale) {
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, pos);
+            // Předpokládám pořadí rotace Y -> X -> Z nebo podobně, upravte dle vaší implementace v SceneObject
+            model = glm::rotate(model, glm::radians(rot.x), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, glm::radians(rot.y), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, glm::radians(rot.z), glm::vec3(0, 0, 1));
+            model = glm::scale(model, scale);
+            return model;
+        };
+
+        // 1. Aktualizujeme matice pro fyziku podle aktuálních dat z SceneObject
+        // Pozor: Musíte správně spárovat Mesh s SceneObjectem!
+
+        // Pro 'cube' (která používá cubeMesh1)
+        modelMatrices[&cubeMesh1] = createModelMatrix(
+            cube.transform.position,
+            cube.transform.rotation,
+            cube.transform.scale
+            );
+
+        // Pro 'pbrcube' (která používá staticmesh)
+        modelMatrices[&staticmesh] = createModelMatrix(
+            pbrcube.transform.position,
+            pbrcube.transform.rotation,
+            pbrcube.transform.scale
+            );
+
+        // Pro 'floor' (která používá planeMesh)
+        modelMatrices[&planeMesh] = createModelMatrix(
+            floor.transform.position,
+            floor.transform.rotation,
+            floor.transform.scale // Pozor: floor nemá nastavený scale v kódu, je default 1.0?
+            );
+
+
+        // --- 2. Update World AABB and rebuild Octree ---
+        // TENTO KÓD UŽ TAM MÁTE, ALE TEĎ BUDE FUNGOVAT SPRÁVNĚ DÍKY AKTUALIZACI VÝŠE
         allWorldAABBs.clear();
         for (StaticMesh* mesh : allMeshes) {
-            // The current model matrix would be obtained here if the object were moving (rotation/translation)
             const glm::mat4& modelMatrix = modelMatrices[mesh];
-            // LocalAABB for the mesh is current if we call UpdateGeometry
+            // Nyní modelMatrix odpovídá tomu, co vidíte na obrazovce
             BoxCollider worldAABB = mesh->localAABB.GetTransformed(modelMatrix);
             allWorldAABBs[mesh] = worldAABB;
         }
-        // Rebuild the Octree with new AABBs
+
         sceneOctree.Build(allWorldAABBs);
         // Note: If the object were also MOVING (e.g., rotation), modelMatrices[mesh] would also need to be updated before this step.
         // Set rayLength to 20.0f, as you tested
@@ -486,8 +473,8 @@ int main() {
         glm::vec3 lightDir;
         unsigned int cubeMap = sky.getCubeMap();
 
-        objPos       = glm::vec3(floor.transform.position);
-        lightDir     = glm::normalize(lightPos - objPos);
+        objPos = glm::vec3(floor.transform.position);
+        lightDir = glm::normalize(lightPos - objPos);
 
         floor.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
         cube.Draw(view, projection, camera.Position, cubeMap, shadowMap.texture,lightSpaceMatrix, lightDir,lightColor);
